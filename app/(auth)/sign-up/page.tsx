@@ -1,9 +1,18 @@
-import React from 'react'
+"use client";
+// 因为我们要给客户端组件传这些特殊的 props，所以这个组件也必须是一个客户端组件。
+
+import AuthForm from "@/components/forms/AuthForm";
+import { SignUpSchema } from "@/lib/validations";
 
 const SignUp = () => {
-    return (
-        <div>Signin</div>
-    )
-}
+  return (
+    <AuthForm
+      formType="SIGN_UP"
+      schema={SignUpSchema}
+      defaultValues={{ email: "", password: "", name: "", username: "" }}
+      onSubmit={(data) => Promise.resolve({ success: true, data })}
+    />
+  );
+};
 
-export default SignUp
+export default SignUp;

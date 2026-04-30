@@ -51,9 +51,16 @@ export default async function RootLayout({
       )}
       suppressHydrationWarning
     >
-      {/* SessionProvider 用来在客户端组件中提供认证上下文 */}
-      <SessionProvider session={session}>
-        <body className="min-h-full flex flex-col">
+      <head>
+        <link
+          rel="stylesheet"
+          type="text/css"
+          href="https://cdn.jsdelivr.net/gh/devicons/devicon@latest/devicon.min.css"
+        />
+      </head>
+      <body className="min-h-full flex flex-col">
+        {/* SessionProvider 用来在客户端组件中提供认证上下文 */}
+        <SessionProvider session={session}>
           {/* 
           ThemeProvider 用来给整个应用提供主题上下文，并在页面初始化时同步 html 上的主题标记。
           这里接入的是 next-themes，它会读取用户保存的主题设置，或跟随系统深浅色偏好，
@@ -73,8 +80,8 @@ export default async function RootLayout({
           </ThemeProvider>
 
           <Toaster richColors />
-        </body>
-      </SessionProvider>
+        </SessionProvider>
+      </body>
     </html>
   );
 }
