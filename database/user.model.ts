@@ -2,12 +2,12 @@ import { model, models, Schema } from "mongoose";
 
 // 定义 IUser 接口来描述用户文档的结构和类型约束。
 // 这有助于在 TypeScript 中提供类型检查和代码提示，确保我们在操作用户数据时遵循预定义的结构。
-interface IUser {
+export interface IUser {
   name: string;
   username: string;
   email: string;
   bio?: string;
-  image: string;
+  image?: string;
   location?: string;
   portfolio?: string;
   reputation?: number;
@@ -21,7 +21,7 @@ const UserSchema = new Schema(
     username: { type: String, required: true },
     email: { type: String, required: true, unique: true },
     bio: { type: String },
-    image: { type: String, required: true },
+    image: { type: String },
     location: { type: String },
     // 个人作品集
     portfolio: { type: String },
