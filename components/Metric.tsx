@@ -1,3 +1,4 @@
+import { cn } from "@/lib/utils";
 import Image from "next/image";
 import Link from "next/link";
 
@@ -11,6 +12,7 @@ interface Props {
   textStyles?: string; // 可选的文本样式类
   isAuthor?: boolean; // 作者信息的样式不太一样
   href?: string; // 可选的链接地址，如果提供了这个属性，整个组件应该是可点击的，并且会导航到这个链接
+  titleStyles?: string; // 可选的标题样式类
 }
 
 const Metric = ({
@@ -22,6 +24,7 @@ const Metric = ({
   textStyles,
   isAuthor,
   href,
+  titleStyles,
 }: Props) => {
   const metricContent = (
     <>
@@ -35,11 +38,11 @@ const Metric = ({
 
       <p className={`flex items-center gap-1 ${textStyles}`}>
         {value}
-        <span
-          className={`small-regular line-clamp-1 ${isAuthor ? "max-sm:hidden" : ""}`}
-        >
-          {title}
-        </span>
+        {title ? (
+          <span className={cn(`small-regular line-clamp-1`, titleStyles)}>
+            {title}
+          </span>
+        ) : null}
       </p>
     </>
   );

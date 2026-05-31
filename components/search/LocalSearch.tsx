@@ -12,10 +12,17 @@ interface Props {
   placeholder: string; // 输入框的占位符文本
   route: string; // 搜索框所在的页面
   otherClasser?: string; // 其他自定义样式类
+  iconPosition?: "left" | "right"; // 图标位置，
 }
 
 // 通过 URL 来管理状态，这样用户可以分享搜索结果的链接，或者刷新页面时保持搜索状态。
-const LocalSearch = ({ imgSrc, placeholder, otherClasser, route }: Props) => {
+const LocalSearch = ({
+  imgSrc,
+  placeholder,
+  otherClasser,
+  route,
+  iconPosition = "left",
+}: Props) => {
   const router = useRouter();
   const searchParams = useSearchParams();
   const pathname = usePathname();
@@ -61,13 +68,15 @@ const LocalSearch = ({ imgSrc, placeholder, otherClasser, route }: Props) => {
       className={`background-light800_darkgradient flex min-h-[56px] 
       grow items-center gap-4 rounded-[10px] px-4 ${otherClasser}`}
     >
-      <Image
-        src={imgSrc}
-        width={24}
-        height={24}
-        alt="Search"
-        className="cursor-pointer"
-      />
+      {iconPosition === "left" && (
+        <Image
+          src={imgSrc}
+          width={24}
+          height={24}
+          alt="Search"
+          className="cursor-pointer"
+        />
+      )}
       <Input
         type="text"
         placeholder={placeholder}
@@ -76,6 +85,15 @@ const LocalSearch = ({ imgSrc, placeholder, otherClasser, route }: Props) => {
         className="paragraph-regular no-focus placeholder 
         text-dark400_light700 border-none shadow-none outline-none"
       />
+      {iconPosition === "right" && (
+        <Image
+          src={imgSrc}
+          width={15}
+          height={15}
+          alt="Search"
+          className="cursor-pointer"
+        />
+      )}
     </div>
   );
 };

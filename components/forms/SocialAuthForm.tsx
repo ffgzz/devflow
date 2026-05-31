@@ -15,6 +15,7 @@ const SocialAuthForm = () => {
       // 这里直接调用 NextAuth 的 signIn 方法，传入对应的 provider ID。
       // NextAuth 会根据 provider ID 处理相应的 OAuth 流程。
       // 因为当前是客户端组件，所以这里要用 next-auth/react 的 signIn，而不是 auth.ts 里的服务端 signIn
+
       await signIn(provider, { redirectTo: ROUTES.HOME });
     } catch (error) {
       console.error(error);

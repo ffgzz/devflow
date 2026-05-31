@@ -21,14 +21,17 @@ import {
   SubmitHandler,
   useForm,
 } from "react-hook-form";
+import { toast } from "sonner";
 import z, { type AnyZodObject } from "zod";
 
+// 定义一个类型，表示表单的值，这些值是从 Zod 模式中推断出来的，并且还包含了 React Hook Form 的 FieldValues。
+// FieldValues 是 React Hook Form 中的一个类型，表示表单字段的值，可以是任何类型。通过将 z.infer<TSchema> 与 FieldValues 结合，我们可以确保 FormValues 包含了 Zod 模式中定义的字段，同时也满足 React Hook Form 的要求。
 type FormValues<TSchema extends AnyZodObject> = z.infer<TSchema> & FieldValues;
 
 interface AuthFormProps<TSchema extends AnyZodObject> {
   schema: TSchema;
   defaultValues: FormValues<TSchema>;
-  onSubmit: (data: FormValues<TSchema>) => Promise<{ success: boolean }>;
+  onSubmit: (data: FormValues<TSchema>) => Promise<ActionResponse>;
   formType: "SIGN_IN" | "SIGN_UP";
 }
 
@@ -62,7 +65,27 @@ const AuthForm = <TSchema extends AnyZodObject>({
     defaultValues: defaultValues as DefaultValues<Values>,
   });
 
-  const handleSubmit: SubmitHandler<Values> = async (data) => {};
+  const handleSubmit: SubmitHandler<Values> = async (data) => {
+    const result = await onSubmit(data);
+
+    if (result.success) {
+      toast.success(
+        formType === "SIGN_IN"
+          ? "You have signed in successfully."
+          : "Your account has been created successfully.",
+        {
+          position: "top-center",
+        },
+      );
+      router.push(ROUTES.HOME);
+    } else {
+      toast.error(`Error ${result.status}`, {
+        description:
+          result?.errors?.message || "An error occurred. Please try again.",
+        position: "top-center",
+      });
+    }
+  };
 
   const buttonText = formType === "SIGN_IN" ? "Sign In" : "Sign Up";
   const fieldNames = Object.keys(defaultValues) as Array<Path<Values>>;

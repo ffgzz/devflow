@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { APICallError } from "ai";
 import { ZodError } from "zod";
 import { RequestError, ValidationError } from "../http-errors";
 import logger from "../logger";
@@ -25,7 +26,7 @@ const formatResponse = (
   // 对于 server actions，直接返回数据对象
   return response === "api"
     ? NextResponse.json(responseContent, { status })
-    : { status, ...responseContent };
+    : ({ status, ...responseContent } as ActionResponse);
 };
 
 // 定义一个统一的错误处理函数，根据错误类型返回适当的响应
@@ -68,6 +69,24 @@ const handleError = (error: unknown, responseType: ResponseType = "server") => {
       validationError.statusCode,
       validationError.message,
       validationError.errors,
+    );
+  }
+
+  if (APICallError.isInstance(error)) {
+    logger.error(
+      {
+        err: error,
+        url: error.url,
+        statusCode: error.statusCode,
+        responseBody: error.responseBody,
+      },
+      `AI Provider Error: ${error.message}`,
+    );
+
+    return formatResponse(
+      responseType,
+      error.statusCode ?? 500,
+      error.message,
     );
   }
 

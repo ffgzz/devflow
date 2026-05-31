@@ -1,4 +1,4 @@
-import { model, models, Schema } from "mongoose";
+import { Document, model, models, Schema } from "mongoose";
 
 // 定义 IUser 接口来描述用户文档的结构和类型约束。
 // 这有助于在 TypeScript 中提供类型检查和代码提示，确保我们在操作用户数据时遵循预定义的结构。
@@ -12,6 +12,8 @@ export interface IUser {
   portfolio?: string;
   reputation?: number;
 }
+
+export interface IUserDoc extends IUser, Document {}
 
 // 定义 Mongoose 模式（Schema）来描述用户文档的结构和约束条件。
 // 这个模式定义了用户文档应该包含哪些字段，以及每个字段的数据类型和是否必填等约束条件。

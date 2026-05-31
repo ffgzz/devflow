@@ -5,6 +5,8 @@ export interface ITagQuestion {
   question: Types.ObjectId; // 关联的问题ID
 }
 
+export interface ITagQuestionDoc extends ITagQuestion, Document {}
+
 const TagQuestionSchema = new Schema<ITagQuestion>(
   {
     tag: { type: Schema.Types.ObjectId, ref: "Tag", required: true },

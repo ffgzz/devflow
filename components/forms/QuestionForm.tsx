@@ -2,11 +2,16 @@
 
 import { AskQuestionSchema } from "@/lib/validations";
 // zodResolver 是连接 Zod校验规则 和 React Hook Form 的桥梁
+import ROUTES from "@/constants/routes";
+import { createQuestion, editQuestion } from "@/lib/actions/question.action";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { MDXEditorMethods } from "@mdxeditor/editor";
+import { Loader2Icon } from "lucide-react";
 import dynamic from "next/dynamic";
-import { KeyboardEvent, useRef } from "react";
+import { useRouter } from "next/navigation";
+import { KeyboardEvent, useRef, useTransition } from "react";
 import { Controller, ControllerRenderProps, useForm } from "react-hook-form";
+import { toast } from "sonner";
 import z from "zod";
 import TagCard from "../cards/TagCard";
 import { Button } from "../ui/button";
@@ -26,15 +31,23 @@ const Editor = dynamic(() => import("@/components/editor"), {
   ssr: false,
 });
 
-const QuestionForm = () => {
+interface Params {
+  question?: Question;
+  isEdit?: boolean;
+}
+
+const QuestionForm = ({ question, isEdit = false }: Params) => {
+  const router = useRouter();
   const editorRef = useRef<MDXEditorMethods>(null);
+  // useTransition() 是 React 提供的一个 Hook，用来把某些状态更新标记成 低优先级更新。
+  const [isPending, startTransition] = useTransition();
 
   const form = useForm<z.infer<typeof AskQuestionSchema>>({
     resolver: zodResolver(AskQuestionSchema),
     defaultValues: {
-      title: "",
-      content: "",
-      tags: [],
+      title: question?.title || "",
+      content: question?.content || "",
+      tags: question?.tags.map((tag) => tag.name) || [],
     },
   });
 
@@ -54,6 +67,7 @@ const QuestionForm = () => {
       if (tagInput && tagInput.length < 15 && !field.value.includes(tagInput)) {
         form.setValue("tags", [...field.value, tagInput]);
         // 在用户按下 Enter 键并成功添加标签后，我们需要清空输入框，以便用户可以继续输入下一个标签。
+        e.currentTarget.value = "";
         // 清除标签相关的错误信息（如果有的话），确保用户在添加标签后不会看到错误提示。
         form.clearErrors("tags");
       } else if (tagInput.length >= 15) {
@@ -90,8 +104,54 @@ const QuestionForm = () => {
     }
   };
 
-  const handleCreateQuestion = (data: z.infer<typeof AskQuestionSchema>) => {
-    console.log(data);
+  const handleCreateQuestion = async (
+    data: z.infer<typeof AskQuestionSchema>,
+  ) => {
+    // startTransition() 的作用是将 createQuestion 这个操作标记为一个低优先级的更新。这意味着在这个操作执行期间，React 会继续响应用户的其他交互，而不会因为这个操作而导致界面卡顿或无响应。
+    startTransition(async () => {
+      // 编辑问题的处理逻辑，跟创建问题分开
+      if (isEdit && question) {
+        const result = await editQuestion({
+          questionId: question?._id,
+          ...data,
+        });
+
+        if (result.success) {
+          toast.success("Success", {
+            description: "Your question has been updated successfully.",
+            position: "top-center",
+          });
+          if (result.data) router.push(ROUTES.QUESTION(result.data._id));
+          else
+            toast.error(`Error ${result.status}`, {
+              description:
+                result.errors?.message ||
+                "An error occurred while updating the question.",
+              position: "top-center",
+            });
+        }
+        // 如果是编辑问题，我们在处理完编辑逻辑后就直接返回，不执行后面的逻辑了
+        return;
+      }
+
+      // 使用 server action 创建问题
+      const result = await createQuestion(data);
+      // 根据 server action 的结果显示成功或错误的 toast 提示，并在成功时重定向到新创建的问题页面
+      if (result.success) {
+        toast.success("Success", {
+          description: "Your question has been created successfully.",
+          position: "top-center",
+        });
+        if (result.data) router.push(ROUTES.QUESTION(result.data._id));
+        else
+          toast.error(`Error ${result.status}`, {
+            description:
+              result.errors?.message ||
+              "An error occurred while creating the question.",
+            position: "top-center",
+          });
+      }
+    });
   };
 
   return (
@@ -195,9 +255,17 @@ const QuestionForm = () => {
       <div className="mt-16 flex justify-end">
         <Button
           type="submit"
+          disabled={isPending}
           className="primary-gradient w-fit text-light-900!"
         >
-          Ask A Question
+          {isPending ? (
+            <>
+              <Loader2Icon className="mr-2 size-4 animate-spin" />
+              <span>Submitting...</span>
+            </>
+          ) : (
+            <>{isEdit ? "Update Question" : "Ask A Question"}</>
+          )}
         </Button>
       </div>
     </form>

@@ -1,10 +1,12 @@
-import { model, models, Schema } from "mongoose";
+import { Document, model, models, Schema } from "mongoose";
 
 export interface ITag {
   name: string;
   // 这个字段用来记录有多少问题使用了这个标签
   questions: number;
 }
+
+export interface ITagDoc extends ITag, Document {}
 
 const TagSchema = new Schema<ITag>(
   {

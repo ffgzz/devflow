@@ -69,6 +69,14 @@ export const AskQuestionSchema = z.object({
     .max(3, { message: "You can add up to 3 tags." }),
 });
 
+export const EditQuestionSchema = AskQuestionSchema.extend({
+  questionId: z.string().min(1, { message: "Question ID is required." }),
+});
+
+export const GetQuestionSchema = z.object({
+  questionId: z.string().min(1, { message: "Question ID is required." }),
+});
+
 // user.model.ts 里的 UserSchema 看做后端验证，IUser 看成是给我们开发者看的验证，
 // 那这里的 UserSchema 就是前端验证了，确保用户在提交表单之前输入的数据是合法的，符合我们定义的规则。这样可以在用户体验上提供即时的反馈，减少无效请求发送到服务器，提高整体的应用性能和安全性。
 export const UserSchema = z.object({
@@ -128,4 +136,64 @@ export const SignInWithOAuthSchema = z.object({
       .url("Please provide a valid URL for the image")
       .optional(),
   }),
+});
+
+// 这个是用来分页和搜索的参数验证，确保用户输入的分页和搜索参数符合预期的格式和要求。
+export const PaginatedSearchParamsSchema = z.object({
+  page: z.number().int().positive().default(1),
+  pageSize: z.number().int().positive().max(100).default(10),
+  query: z.string().max(100).optional(),
+  filter: z.string().max(50).optional(),
+  sort: z.string().max(50).optional(),
+});
+
+// 这个是用来获取某个标签下的问题的参数验证，确保用户输入的标签 ID 和分页参数符合预期的格式和要求。
+export const GetTagQuestionsSchema = PaginatedSearchParamsSchema.extend({
+  tagId: z.string().min(1, "Tag ID is required"),
+});
+
+export const IncrementViewsSchema = z.object({
+  questionId: z.string().min(1, "Question ID is required"),
+});
+
+// 回答问题的验证规则，AnswerForm组件只接受 这一个参数
+export const AnswerSchema = z.object({
+  content: z.string().min(100, "Answer must be at least 100 characters long."),
+});
+
+export const AnswerServerSchema = AnswerSchema.extend({
+  questionId: z.string().min(1, "Question ID is required"),
+});
+
+export const GetAnswersSchema = PaginatedSearchParamsSchema.extend({
+  questionId: z.string().min(1, "Question ID is required"),
+});
+
+export const AIAnswerSchema = z.object({
+  question: z
+    .string()
+    .min(5, { message: "Question must be at least 5 characters long." })
+    .max(130, { message: "Question cannot exceed 130 characters." }),
+  content: z.string().min(100, {
+    message: "Question description must have Minimum of 100 characters.",
+  }),
+  userAnswer: z.string().optional(),
+});
+
+export const CreateVoteSchema = z.object({
+  targetId: z.string().min(1, "Target ID is required"),
+  targetType: z.enum(["question", "answer"], {
+    message: "Target type must be either 'question' or 'answer'",
+  }),
+  voteType: z.enum(["upvote", "downvote"], {
+    message: "Vote type must be either 'upvote' or 'downvote'",
+  }),
+});
+export const UpdateVoteCountSchema = CreateVoteSchema.extend({
+  change: z.number().int().min(-1).max(1),
+});
+
+export const hasVotedSchema = CreateVoteSchema.pick({
+  targetId: true,
+  targetType: true,
 });

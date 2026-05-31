@@ -14,6 +14,7 @@ export const api = {
       return fetchHandler(`${API_BASE_URL}${ROUTES.SIGN_IN_WITH_OAUTH}`, {
         method: "POST",
         body: JSON.stringify({ provider, providerAccountId, user }),
+        timeout: 15000,
       });
     },
   },
@@ -76,6 +77,19 @@ export const api = {
     delete(id: string) {
       return fetchHandler(`${API_BASE_URL}/accounts/${id}`, {
         method: "DELETE",
+      });
+    },
+  },
+  ai: {
+    // 获取 AI 的回答
+    getAnswer(
+      question: string,
+      content: string,
+      userAnswer?: string,
+    ): Promise<ActionResponse<string>> {
+      return fetchHandler<string>(`${API_BASE_URL}/ai/answers`, {
+        method: "POST",
+        body: JSON.stringify({ question, content, userAnswer }),
       });
     },
   },

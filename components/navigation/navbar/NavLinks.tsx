@@ -9,10 +9,14 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import React from "react";
 
-const NavLinks = ({ isMobileNav = false }: { isMobileNav?: boolean }) => {
+const NavLinks = ({
+  isMobileNav = false,
+  userId,
+}: {
+  isMobileNav?: boolean;
+  userId?: string;
+}) => {
   const pathname = usePathname();
-  // TODO: 这里我们暂时使用一个固定的 userId 来模拟用户已登录的状态，后续我们会接入真正的认证系统来动态获取用户信息。
-  const userId = 1;
 
   return (
     <>

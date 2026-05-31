@@ -1,84 +1,34 @@
 import QuestionCard from "@/components/cards/QuestionCard";
+import DataRenderer from "@/components/DataRenderer";
 import HomeFilter from "@/components/filters/HomeFilter";
 import LocalSearch from "@/components/search/LocalSearch";
 import { Button } from "@/components/ui/button";
 import ROUTES from "@/constants/routes";
+import { EMPTY_QUESTION } from "@/constants/states";
+import { getQuestions } from "@/lib/actions/question.action";
 import Link from "next/link";
 
 interface SearchParams {
   searchParams: Promise<{ [key: string]: string }>;
 }
 
-const questions = [
-  {
-    _id: "1",
-    title: "How to learn React?",
-    description: "I am new to React and want to learn it. Any suggestions?",
-    tags: [
-      { _id: "1", name: "React" },
-      { _id: "2", name: "JavaScript" },
-    ],
-    author: {
-      _id: "1",
-      name: "Alice",
-      image:
-        "https://pixnio.com/free-images/2026/04/21/2026-04-21-06-56-21-768x1152.jpg",
-    },
-    upvotes: 10,
-    answers: 5,
-    views: 100,
-    createdAt: new Date("2024-01-01"),
-  },
-  {
-    _id: "2",
-    title: "What is Next.js?",
-    description: "Can someone explain what Next.js is and why it's useful?",
-    tags: [
-      { _id: "1", name: "Next.js" },
-      { _id: "2", name: "React" },
-    ],
-    author: {
-      _id: "2",
-      name: "Bob",
-      image:
-        "https://pixnio.com/free-images/2026/04/21/2026-04-21-06-56-21-768x1152.jpg",
-    },
-    upvotes: 20,
-    answers: 3,
-    views: 200,
-    createdAt: new Date("2024-01-01"),
-  },
-  {
-    _id: "3",
-    title: "How to manage state in React?",
-    description: "What are the best practices for state management in React?",
-    tags: [
-      { _id: "1", name: "React" },
-      { _id: "2", name: "State Management" },
-    ],
-    author: {
-      _id: "3",
-      name: "Charlie",
-      image:
-        "https://pixnio.com/free-images/2026/04/21/2026-04-21-06-56-21-768x1152.jpg",
-    },
-    upvotes: 15,
-    answers: 7,
-    views: 150,
-    createdAt: new Date("2024-01-01"),
-  },
-];
-
 export default async function Home({ searchParams }: SearchParams) {
-  // 设一个默认值，避免 searchParams 中没有 query 时出现 undefined 的情况
-  const { query = "", filter = "" } = await searchParams;
+  const { page, pageSize, query, filter } = await searchParams;
+
+  const { success, data, errors } = await getQuestions({
+    page: Number(page) || 1,
+    pageSize: Number(pageSize) || 10,
+    query,
+    filter,
+  });
+  const { questions } = data || {};
 
   // 根据 query 和 filter 来过滤问题列表
-  const filteredQuestions = questions.filter((question) =>
-    question.title.toLowerCase().includes(query?.toLowerCase()) && filter
-      ? question.tags[0].name?.toLowerCase() === filter?.toLowerCase()
-      : true,
-  );
+  // const filteredQuestions = questions?.filter((question) =>
+  //   question.title.toLowerCase().includes(query?.toLowerCase()) && filter
+  //     ? question.tags[0].name?.toLowerCase() === filter?.toLowerCase()
+  //     : true,
+  // );
 
   return (
     <>
@@ -107,11 +57,41 @@ export default async function Home({ searchParams }: SearchParams) {
       {/* 用于筛选问题 */}
       <HomeFilter />
 
-      <div className="mt-10 flex w-full flex-col gap-6">
-        {filteredQuestions.map((question) => (
-          <QuestionCard key={question._id} question={question} />
-        ))}
-      </div>
+      {/* 可复用的数据渲染器，既可以渲染数据，也可以展示空状态和错误状态 */}
+      <DataRenderer
+        success={success}
+        error={errors}
+        data={questions}
+        empty={EMPTY_QUESTION}
+        render={(questions) => (
+          <div className="mt-10 flex w-full flex-col gap-6">
+            {questions.map((question) => (
+              <QuestionCard key={question._id} question={question} />
+            ))}
+          </div>
+        )}
+      />
+
+      {/* 获取成功才显示问题列表
+      {success ? (
+        <div className="mt-10 flex w-full flex-col gap-6">
+          {questions && questions.length > 0 ? (
+            questions.map((question) => (
+              <QuestionCard key={question._id} question={question} />
+            ))
+          ) : (
+            <div className="mt-10 flex items-center justify-center w-full">
+              <p className="text-dark400_light700">No questions found.</p>
+            </div>
+          )}
+        </div>
+      ) : (
+        <div className="mt-10 flex justify-center items-center w-full">
+          <p className="text-dark400_light700">
+            {errors?.message || "An error occurred while fetching questions."}
+          </p> 
+        </div>
+      )} */}
     </>
   );
 }

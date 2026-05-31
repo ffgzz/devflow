@@ -1,3 +1,5 @@
+// 在连接数据库之前，先把所有 Mongoose models 都加载并注册好
+import "@/database";
 import mongoose, { type Mongoose } from "mongoose";
 import dns from "node:dns/promises";
 import logger from "./logger";

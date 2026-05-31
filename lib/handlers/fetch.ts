@@ -18,7 +18,7 @@ export async function fetchHandler<T>(
   options?: FetchOptions,
 ): Promise<ActionResponse<T>> {
   const {
-    timeout = 5000,
+    timeout = 100000,
     headers: customHeaders = {},
     ...restOptions
   } = options ?? {};
@@ -51,6 +51,16 @@ export async function fetchHandler<T>(
     clearTimeout(timeoutId);
 
     if (!response.ok) {
+      const errorResponse = await response.json().catch(() => null);
+
+      if (errorResponse?.error?.message) {
+        return {
+          success: false,
+          errors: errorResponse.error,
+          status: response.status,
+        } as ActionResponse<T>;
+      }
+
       throw new RequestError(
         response.status,
         `HTTP error ${response.statusText}`,

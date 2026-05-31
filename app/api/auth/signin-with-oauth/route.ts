@@ -5,6 +5,7 @@ import { ValidationError } from "@/lib/http-errors";
 import { dbConnect } from "@/lib/mongoose";
 import { SignInWithOAuthSchema } from "@/lib/validations";
 import mongoose from "mongoose";
+import { NextResponse } from "next/server";
 import slugify from "slugify";
 
 export async function POST(request: Request) {
@@ -31,6 +32,7 @@ export async function POST(request: Request) {
 
     const { name, username, email, image } = user;
 
+    // 使用 slugify 来生成一个 URL 友好的用户名，这样我们就可以确保生成的用户名在 URL 中是合法的，并且没有特殊字符或空格。
     const slugifiedUsername = slugify(username, {
       // lower: true 会将字符串转换为小写，确保生成的 slug 是小写的，这样可以避免在 URL 中出现大小写不一致的问题。
       lower: true,
@@ -41,6 +43,7 @@ export async function POST(request: Request) {
     });
     // 这里我们需要先检查是否已经存在对应的账户，如果存在就直接返回用户数据；如果不存在，就创建一个新的账户和用户，并将新用户的数据返回给客户端。
     // 这里的.session 是 mongoose 提供的一个方法，用于在查询时指定使用当前的 session，这样就可以确保在同一个事务中进行查询和修改操作。
+    // 这里的检查逻辑是通过 email 来判断用户是否已经存在，因为 email 是一个唯一标识用户的字段，如果数据库中已经存在这个 email 对应的用户，那么我们就认为这个用户已经存在了。
     let existingUser = await User.findOne({ email }).session(session);
     if (!existingUser) {
       [existingUser] = await User.create(
@@ -95,6 +98,8 @@ export async function POST(request: Request) {
 
     // 如果在事务过程中没有发生任何错误，我们需要提交事务，以将所有的操作保存到数据库中。
     await session.commitTransaction();
+    // 在事务提交成功后，我们可以返回数据给客户端，表示登录成功。
+    return NextResponse.json({ success: true });
   } catch (error) {
     // 如果在事务过程中发生任何错误，我们需要回滚事务，以确保数据库保持一致性。
     await session.abortTransaction();

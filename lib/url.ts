@@ -1,3 +1,5 @@
+// 这个 query-string 库是一个流行的 JavaScript 库，用于解析和构建 URL 查询字符串。
+// 它提供了简单的 API 来处理 URL 查询参数，使得我们可以轻松地添加、更新或删除查询参数，而不需要手动处理字符串拼接和编码问题。
 import qs from "query-string";
 
 // URL 相关的工具函数
@@ -20,17 +22,19 @@ export const formUrlQuery = ({ params, key, value }: UrlQueryParams) => {
   const currentUrl = qs.parse(params);
   // 更新或添加新的查询参数
   currentUrl[key] = value;
-
+  // 把路径和查询参数对象重新拼成一个完整 URL
   return qs.stringifyUrl({
     url: window.location.pathname,
     query: currentUrl,
   });
 };
 
+// 定义：该函数用于从当前的 URL 查询参数中移除一个或多个指定的查询参数，并返回新的查询字符串。
 export const removeKeysFromQuery = ({
   params,
   keysToRemove,
 }: RemoveUrlQueryParams) => {
+  // 解析当前 URL 的查询参数为一个对象
   const currentUrl = qs.parse(params);
 
   // 删除指定的键
@@ -38,6 +42,7 @@ export const removeKeysFromQuery = ({
     delete currentUrl[key];
   });
 
+  // 生成新的 URL 查询字符串，跳过值为 null 或 undefined 的参数
   return qs.stringifyUrl(
     {
       url: window.location.pathname,
