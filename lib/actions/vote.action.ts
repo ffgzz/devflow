@@ -164,6 +164,7 @@ export const createVote = async (
   }
 };
 
+// 检查用户是否已经对某个问题或答案投过票
 export const hasVoted = async (
   params: HasVotedParams,
 ): Promise<ActionResponse<HasVotedResponse>> => {

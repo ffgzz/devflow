@@ -3,8 +3,24 @@ import { getTimeStamp } from "@/lib/utils";
 import Link from "next/link";
 import UserAvatar from "../UserAvatar";
 import Preview from "../editor/Preview";
+import { Suspense } from "react";
+import Votes from "../votes/Votes";
+import { hasVoted } from "@/lib/actions/vote.action";
 
-const AnswerCard = ({ _id, author, content, createdAt }: Answer) => {
+const AnswerCard = ({
+  _id,
+  author,
+  content,
+  createdAt,
+  upvotes,
+  downvotes,
+}: Answer) => {
+  // 获取用户是否已经投过票的信息
+  const hasVotedPromise = hasVoted({
+    targetId: _id,
+    targetType: "answer",
+  });
+
   return (
     <article className="light-border border-b py-10">
       <span id={JSON.stringify(_id)} className="hash-span" />
@@ -33,7 +49,17 @@ const AnswerCard = ({ _id, author, content, createdAt }: Answer) => {
           </Link>
         </div>
 
-        <div className="flex justify-end">Votes</div>
+        <div className="flex justify-end">
+          <Suspense fallback={<div>Loading votes...</div>}>
+            <Votes
+              upvotes={upvotes}
+              downvotes={downvotes}
+              hasVotedPromise={hasVotedPromise}
+              targetId={_id}
+              targetType="answer"
+            />
+          </Suspense>
+        </div>
       </div>
 
       {/* 渲染答案的内容 */}

@@ -36,6 +36,7 @@ interface StateSkeletonProps {
 }
 
 // 空状态骨架组件，展示图片、标题、消息和可选的按钮
+// 这个组件被 DataRenderer 用来展示请求失败或没有数据时的状态
 const StateSkeleton = ({
   title,
   image,
@@ -109,6 +110,7 @@ const DataRenderer = <T,>({
     );
   }
 
+  // 如果请求成功但没有数据，展示空状态
   if (!data || data.length === 0) {
     return (
       <StateSkeleton

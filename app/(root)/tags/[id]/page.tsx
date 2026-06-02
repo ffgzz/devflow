@@ -31,7 +31,7 @@ const page = async ({ params, searchParams }: RouteParams) => {
           route={ROUTES.TAG(id)}
           imgSrc="/icons/search.svg"
           placeholder="Search questions..."
-          otherClasser="flex-1"
+          otherClasses="flex-1"
         />
       </section>
 

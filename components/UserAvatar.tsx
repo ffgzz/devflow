@@ -35,8 +35,8 @@ const UserAvatar = ({
             src={imageUrl}
             alt={name}
             className="object-cover"
-            width={36}
-            height={36}
+            // 它允许图片自动调整大小以填充其父容器，同时保持图像的宽高比不变。通过使用 fill 属性，我们可以确保用户头像在不同的设备和屏幕尺寸下都能正确显示，并且能够适应各种布局需求。
+            fill
             quality={100}
           />
         ) : (

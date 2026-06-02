@@ -11,7 +11,7 @@ interface Props {
   imgSrc: string; // 搜索图标的路径
   placeholder: string; // 输入框的占位符文本
   route: string; // 搜索框所在的页面
-  otherClasser?: string; // 其他自定义样式类
+  otherClasses?: string; // 其他自定义样式类
   iconPosition?: "left" | "right"; // 图标位置，
 }
 
@@ -19,7 +19,7 @@ interface Props {
 const LocalSearch = ({
   imgSrc,
   placeholder,
-  otherClasser,
+  otherClasses,
   route,
   iconPosition = "left",
 }: Props) => {
@@ -66,7 +66,7 @@ const LocalSearch = ({
   return (
     <div
       className={`background-light800_darkgradient flex min-h-[56px] 
-      grow items-center gap-4 rounded-[10px] px-4 ${otherClasser}`}
+      grow items-center gap-4 rounded-[10px] px-4 ${otherClasses}`}
     >
       {iconPosition === "left" && (
         <Image

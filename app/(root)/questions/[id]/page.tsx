@@ -3,10 +3,12 @@ import TagCard from "@/components/cards/TagCard";
 import Preview from "@/components/editor/Preview";
 import AnswerForm from "@/components/forms/AnswerForm";
 import Metric from "@/components/Metric";
+import SaveQuestion from "@/components/questions/SaveQuestion";
 import UserAvatar from "@/components/UserAvatar";
 import Votes from "@/components/votes/Votes";
 import ROUTES from "@/constants/routes";
 import { getAnswers } from "@/lib/actions/answer.action";
+import { hasSvaedQuestion } from "@/lib/actions/collection.action";
 import { getQuestion, incrementViews } from "@/lib/actions/question.action";
 import { hasVoted } from "@/lib/actions/vote.action";
 import { formatNumber, getTimeStamp } from "@/lib/utils";
@@ -22,6 +24,8 @@ const QuestionDetails = async ({ params }: RouteParams) => {
 
   // after 是 Next.js 提供的一个服务端函数
   // 它的作用是：把一段工作安排到“响应发送完成之后”再执行。
+  // 这里我们用它来确保：在用户请求这个问题详情页的时候，我们先把页面内容正常加载并发送给用户，
+  // 等这一切都完成了之后，我们再去执行 incrementViews 这个函数来增加问题的浏览量。
   after(async () => {
     await incrementViews({ questionId: id });
   });
@@ -47,6 +51,10 @@ const QuestionDetails = async ({ params }: RouteParams) => {
     targetId: id,
     targetType: "question",
   });
+  // 获取用户是否已经收藏过这个问题，这样我们就可以在界面上正确显示收藏按钮的状态（已收藏或未收藏）
+  const hasSavedQuestionPromise = hasSvaedQuestion({
+    questionId: id,
+  });
 
   const { answers, views, title, tags, author, content, createdAt } = question;
 
@@ -68,6 +76,7 @@ const QuestionDetails = async ({ params }: RouteParams) => {
             </Link>
           </div>
 
+          {/* 投票的地方 */}
           <div className="flex justify-end">
             <Suspense fallback={<div>Loading votes...</div>}>
               <Votes
@@ -76,6 +85,14 @@ const QuestionDetails = async ({ params }: RouteParams) => {
                 hasVotedPromise={hasVotedPromise}
                 targetId={id}
                 targetType="question"
+              />
+            </Suspense>
+
+            <Suspense fallback={<div>Loading save button...</div>}>
+              {/* 收藏问题的按钮 */}
+              <SaveQuestion
+                questionId={id}
+                hasSavedQuestionPromise={hasSavedQuestionPromise}
               />
             </Suspense>
           </div>

@@ -28,7 +28,7 @@ const Tags = async ({ searchParams }: RouteParams) => {
           imgSrc="/icons/search.svg"
           placeholder="Search by tag name..."
           iconPosition="left"
-          otherClasser="flex-1"
+          otherClasses="flex-1"
         />
       </section>
 

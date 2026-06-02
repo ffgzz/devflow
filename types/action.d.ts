@@ -58,8 +58,13 @@ interface CreateVoteParmas {
 interface UpdateVoteCountParams extends CreateVoteParmas {
   change: 1 | -1; // 1表示增加，-1表示减少
 }
+// 是否已经投过票的参数和返回类型
 type HasVotedParams = Pick<CreateVoteParmas, "targetId" | "targetType">;
 interface HasVotedResponse {
   hasUpvoted: boolean;
   hasDownvoted: boolean;
+}
+
+interface CollectionBaseParams {
+  questionId: string;
 }

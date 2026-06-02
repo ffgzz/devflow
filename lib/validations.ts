@@ -197,3 +197,7 @@ export const hasVotedSchema = CreateVoteSchema.pick({
   targetId: true,
   targetType: true,
 });
+// 这个是用来创建和编辑收藏夹的验证规则
+export const CollectionBaseSchema = z.object({
+  questionId: z.string().min(1, "Question ID is required"),
+});

@@ -62,4 +62,24 @@ interface Answer {
   content: string;
   author: Author;
   createdAt: Date;
+  upvotes: number;
+  downvotes: number;
+}
+
+interface User {
+  _id: string;
+  name: string;
+  email: string;
+  username: string;
+  image?: string;
+  bio?: string;
+  location?: string;
+  prortfolio?: string;
+  reputation?: number;
+}
+
+interface Collection {
+  _id: string;
+  author: string | Author;
+  question: Question;
 }

@@ -41,6 +41,8 @@ interface Props {
   editorRef: ForwardedRef<MDXEditorMethods> | null;
 }
 
+// Editor 组件是一个基于 MDXEditor 的富文本编辑器组件，提供了丰富的编辑功能和自定义工具栏按钮。通过集成各种插件，我们可以满足用户在编辑内容时的多样化需求，同时通过动态主题支持确保在不同主题下都具有良好的视觉效果和一致的用户体验。
+// 主要用于提问页面和问题页面的回答
 const Editor = ({ value, fieldChange, editorRef, ...props }: Props) => {
   const { resolvedTheme } = useTheme();
   // MDXEditor 的 codeMirrorPlugin 插件支持 CodeMirror 编辑器的主题定制。

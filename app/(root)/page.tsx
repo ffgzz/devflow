@@ -50,7 +50,7 @@ export default async function Home({ searchParams }: SearchParams) {
           route="/"
           imgSrc="/icons/search.svg"
           placeholder="Search questions..."
-          otherClasser="flex-1"
+          otherClasses="flex-1"
         />
       </section>
 
