@@ -14,6 +14,7 @@ import {
   getUser,
   getUserAnswers,
   getUserQuestions,
+  getUserStats,
   getUserTopTags,
 } from "@/lib/actions/user.action";
 import dayjs from "dayjs";
@@ -40,6 +41,8 @@ const Profile = async ({ params, searchParams }: RouteParams) => {
     );
   }
   const { user, totalQuestions, totalAnswers } = data;
+
+  const { data: userStats } = await getUserStats({ userId: id });
 
   // 获取该用户提的问题
   const {
@@ -171,14 +174,10 @@ const Profile = async ({ params, searchParams }: RouteParams) => {
 
       {/* 用户统计数据 */}
       <Stats
-        totalQuestions={totalQuestions}
-        totalAnswers={totalAnswers}
-        badges={{
-          GOLD: 0,
-          SILVER: 0,
-          BRONZE: 0,
-        }}
-        reputationPoints={0}
+        totalQuestions={userStats?.totalQuestions || totalQuestions}
+        totalAnswers={userStats?.totalAnswers || totalAnswers}
+        badges={userStats?.badges || { GOLD: 0, SILVER: 0, BRONZE: 0 }}
+        reputationPoints={user.reputation || 0}
       />
 
       <section className="mt-10 flex gap-10">

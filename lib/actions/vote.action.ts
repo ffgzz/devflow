@@ -1,9 +1,12 @@
 "use server";
 
+import ROUTES from "@/constants/routes";
 import Answer from "@/database/answer.model";
 import Question from "@/database/question.model";
 import Vote from "@/database/vote.model";
 import mongoose, { ClientSession } from "mongoose";
+import { revalidatePath } from "next/cache";
+import { after } from "next/server";
 import action from "../handlers/action";
 import handleError from "../handlers/error";
 import {
@@ -11,8 +14,7 @@ import {
   hasVotedSchema,
   UpdateVoteCountSchema,
 } from "../validations";
-import { revalidatePath } from "next/cache";
-import ROUTES from "@/constants/routes";
+import { createInteraction } from "./interaction.action";
 
 // 更新投票计数
 export const updateVoteCount = async (
@@ -79,6 +81,13 @@ export const createVote = async (
   // 开启事务
   session.startTransaction();
   try {
+    // 首先我们需要找到用户投票的目标内容（问题或答案），以便后续记录交互日志时知道这个内容的作者是谁。
+    const Model = targetType === "question" ? Question : Answer;
+    const contentDoc = await Model.findById(targetId).session(session);
+    if (!contentDoc) throw new Error("Content not found");
+
+    const contentAuthorId = contentDoc.author.toString();
+
     // 首先检查用户是否已经对这个目标（问题或答案）投过票
     const existingVote = await Vote.findOne({
       author: userId,
@@ -150,6 +159,16 @@ export const createVote = async (
         session,
       );
     }
+
+    // 创建或更新投票记录后，我们还想记录这个操作，以便后续在用户的个人资料页展示用户的活动记录。
+    after(async () => {
+      await createInteraction({
+        action: voteType,
+        actionId: targetId,
+        actionTarget: targetType,
+        authorId: contentAuthorId,
+      });
+    });
 
     //  提交事务，确保所有的数据库操作都成功执行，如果有任何一个操作失败，整个事务都会回滚
     await session.commitTransaction();

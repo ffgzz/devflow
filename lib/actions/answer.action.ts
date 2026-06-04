@@ -6,6 +6,7 @@ import Question from "@/database/question.model";
 import Vote from "@/database/vote.model";
 import mongoose from "mongoose";
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
 import action from "../handlers/action";
 import handleError from "../handlers/error";
 import {
@@ -13,6 +14,7 @@ import {
   DeleteAnswerSchema,
   GetAnswersSchema,
 } from "../validations";
+import { createInteraction } from "./interaction.action";
 
 export async function createAnswer(
   params: CreateAnswerParams,
@@ -50,6 +52,17 @@ export async function createAnswer(
     // 创建回答成功后，我们需要将对应问题的 answers 字段加 1，以保持数据的一致性。
     question.answers += 1;
     await question.save({ session });
+
+    // 创建回答后，我们还想记录这个操作，以便后续在用户的个人资料页展示用户的活动记录。
+    // 这里我们使用了 Next.js 的 after 函数，它接受一个异步函数作为参数，这个函数会在当前请求完成后执行。我们在这个函数里调用 createInteraction 来创建一条新的交互记录，记录用户创建了一个回答的操作。
+    after(async () => {
+      await createInteraction({
+        action: "post",
+        actionId: answer._id.toString(),
+        actionTarget: "answer",
+        authorId: userId as string,
+      });
+    });
 
     await session.commitTransaction();
     // 这里调用 revalidatePath 来重新验证问题详情页的缓存，以便新创建的回答能够立即显示在页面上。
@@ -165,6 +178,17 @@ export async function deleteAnswer(
     // 然后删除这个答案，同时也删除与这个答案相关的投票记录，以保持数据的整洁。
     await Vote.deleteMany({ id: answerId, type: "answer" });
     await Answer.findByIdAndDelete(answerId);
+
+    // 删除答案后，我们还想记录这个操作，以便后续在用户的个人资料页展示用户的活动记录。
+    // 这里我们使用了 Next.js 的 after 函数，它接受一个异步函数作为参数，这个函数会在当前请求完成后执行。我们在这个函数里调用 createInteraction 来创建一条新的交互记录，记录用户删除了一个回答的操作。
+    after(async () => {
+      await createInteraction({
+        action: "delete",
+        actionId: answerId,
+        actionTarget: "answer",
+        authorId: user?.id as string,
+      });
+    });
 
     revalidatePath(`/profile/${user?.id}`);
 

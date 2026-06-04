@@ -1,13 +1,16 @@
 "use server";
 
+import { auth } from "@/auth";
 import Answer from "@/database/answer.model";
 import Collection from "@/database/collection.model";
+import Interaction from "@/database/interaction.model";
 import Question, { IQuestionDoc } from "@/database/question.model";
 import TagQuestion from "@/database/tag-question.model";
 import Tag, { ITagDoc } from "@/database/tag.model";
 import Vote from "@/database/vote.model";
-import mongoose from "mongoose";
+import mongoose, { Types } from "mongoose";
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
 import action from "../handlers/action";
 import handleError from "../handlers/error";
 import { dbConnect } from "../mongoose";
@@ -19,6 +22,7 @@ import {
   IncrementViewsSchema,
   PaginatedSearchParamsSchema,
 } from "../validations";
+import { createInteraction } from "./interaction.action";
 
 export async function createQuestion(
   params: CreateQuestionParams,
@@ -93,6 +97,16 @@ export async function createQuestion(
       { $push: { tags: { $each: tagIds } } },
       { session },
     );
+
+    // 创建问题之后，我们还想记录这个操作，以便后续在用户的个人资料页展示用户的活动记录。
+    after(async () => {
+      await createInteraction({
+        action: "post",
+        actionId: question._id.toString(),
+        actionTarget: "question",
+        authorId: userId as string,
+      });
+    });
 
     await session.commitTransaction();
 
@@ -251,6 +265,62 @@ export async function getQuestion(
   }
 }
 
+export async function getRecommendedQuestions({
+  userId,
+  query,
+  skip,
+  limit,
+}: RecommendationParams) {
+  const interactions = await Interaction.find({
+    user: new Types.ObjectId(userId),
+    actionType: "question",
+    action: { $in: ["view", "upvote", "bookmark", "post"] },
+  })
+    .sort({ createdAt: -1 })
+    .limit(50)
+    .lean();
+
+  const interactedQuestionIds = interactions.map((i) => i.actionId);
+
+  const interactedQuestions = await Question.find({
+    _id: { $in: interactedQuestionIds },
+  }).select("tags");
+
+  const allTags = interactedQuestions.flatMap((q) =>
+    q.tags.map((tag: Types.ObjectId) => tag.toString()),
+  );
+
+  const uniqueTagIds = [...new Set(allTags)];
+
+  const recommendedQuery: Record<string, unknown> = {
+    _id: { $nin: interactedQuestionIds },
+    author: { $ne: new Types.ObjectId(userId) },
+    tags: { $in: uniqueTagIds.map((id) => new Types.ObjectId(id)) },
+  };
+
+  if (query) {
+    recommendedQuery.$or = [
+      { title: { $regex: query, $options: "i" } },
+      { content: { $regex: query, $options: "i" } },
+    ];
+  }
+
+  const total = await Question.countDocuments(recommendedQuery);
+
+  const questions = await Question.find(recommendedQuery)
+    .populate("tags", "name")
+    .populate("author", "name image")
+    .sort({ upvotes: -1, views: -1 })
+    .skip(skip)
+    .limit(limit)
+    .lean();
+
+  return {
+    questions: JSON.parse(JSON.stringify(questions)),
+    isNext: total > skip + questions.length,
+  };
+}
+
 // 获取所有基于搜索条件的问题，用于首页展示
 export async function getQuestions(
   params: PaginatedSearchParams,
@@ -279,38 +349,53 @@ export async function getQuestions(
   const limit = pageSize;
 
   const filterQuery: Record<string, unknown> = {};
-  // 推荐算法暂未实现，先返回空数据
-  if (filter === "recommended")
-    return { success: true, data: { questions: [], isNext: false } };
-
-  // 如果 query 存在，我们就构造一个 filterQuery 对象，这个对象会被用来作为 MongoDB 查询的过滤条件。
-  // 具体来说，我们使用 $or 操作符来指定多个查询条件，表示只要满足其中一个条件就可以匹配到文档。在这里，我们有两个条件：一个是 title 字段包含 query 字符串（不区分大小写），另一个是 content 字段包含 query 字符串（不区分大小写）。我们使用 $regex 操作符来实现模糊匹配，$options: "i" 表示不区分大小写。
-  if (query) {
-    filterQuery.$or = [
-      { title: { $regex: query, $options: "i" } },
-      { content: { $regex: query, $options: "i" } },
-    ];
-  }
-  // 这个 sortCriteria 用于排序
   let sortCriteria: Record<string, mongoose.SortOrder> = {};
-  switch (filter) {
-    case "newest":
-      sortCriteria = { createdAt: -1 };
-      break;
-    case "unanswered":
-      // 如果 filter 是 "unanswered"，我们就把 filterQuery 对象里添加一个条件，要求 answers 字段的值必须是 0，这样就只会匹配那些没有答案的问题了。同时我们也把 sortCriteria 设置为 { createdAt: -1 }，表示按照创建时间降序排序，这样最新的无答案问题会排在前面。
-      filterQuery.answers = 0;
-      sortCriteria = { createdAt: -1 };
-      break;
-    case "popular":
-      sortCriteria = { upvotes: -1 };
-      break;
-    default:
-      sortCriteria = { createdAt: -1 };
-      break;
-  }
 
   try {
+    if (filter === "recommended") {
+      const session = await auth();
+      const userId = session?.user?.id;
+
+      if (!userId) {
+        return { success: true, data: { questions: [], isNext: false } };
+      }
+
+      const recommended = await getRecommendedQuestions({
+        userId,
+        query,
+        skip,
+        limit,
+      });
+
+      return { success: true, data: recommended };
+    }
+
+    // 如果 query 存在，我们就构造一个 filterQuery 对象，这个对象会被用来作为 MongoDB 查询的过滤条件。
+    // 具体来说，我们使用 $or 操作符来指定多个查询条件，表示只要满足其中一个条件就可以匹配到文档。在这里，我们有两个条件：一个是 title 字段包含 query 字符串（不区分大小写），另一个是 content 字段包含 query 字符串（不区分大小写）。我们使用 $regex 操作符来实现模糊匹配，$options: "i" 表示不区分大小写。
+    if (query) {
+      filterQuery.$or = [
+        { title: { $regex: query, $options: "i" } },
+        { content: { $regex: query, $options: "i" } },
+      ];
+    }
+    // 这个 sortCriteria 用于排序
+    switch (filter) {
+      case "newest":
+        sortCriteria = { createdAt: -1 };
+        break;
+      case "unanswered":
+        // 如果 filter 是 "unanswered"，我们就把 filterQuery 对象里添加一个条件，要求 answers 字段的值必须是 0，这样就只会匹配那些没有答案的问题了。同时我们也把 sortCriteria 设置为 { createdAt: -1 }，表示按照创建时间降序排序，这样最新的无答案问题会排在前面。
+        filterQuery.answers = 0;
+        sortCriteria = { createdAt: -1 };
+        break;
+      case "popular":
+        sortCriteria = { upvotes: -1 };
+        break;
+      default:
+        sortCriteria = { createdAt: -1 };
+        break;
+    }
+
     // 计算满足过滤条件的总问题数量，以便判断是否有下一页数据
     const totalQuestions = await Question.countDocuments(filterQuery);
 
@@ -447,6 +532,17 @@ export async function deleteQuestion(
     }
     // 最后删除这个问题
     await Question.findByIdAndDelete(questionId).session(session);
+
+    // 删除问题之后，我们还想记录这个操作，以便后续在用户的个人资料页展示用户的活动记录。
+    after(async () => {
+      await createInteraction({
+        action: "delete",
+        actionId: questionId,
+        actionTarget: "question",
+        authorId: user?.id as string,
+      });
+    });
+
     // 提交事务
     await session.commitTransaction();
     // revalidatePath 是 Next.js 提供的一个函数，用于在服务器端重新验证指定路径的数据。

@@ -1,3 +1,4 @@
+import { BADGE_CRITERIA } from "@/constants";
 import { techMap } from "@/constants/techMap";
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
@@ -90,3 +91,36 @@ export const formatNumber = (num: number) => {
   }
   return num.toString();
 };
+
+// 这个函数用于根据用户的统计数据来评定用户应该获得哪些徽章。它接受一个 criteria 数组，
+// 数组里的每一项都是一个评定标准，包含一个 type 字段表示评定的类型（比如 ANSWER_COUNT、QUESTION_COUNT、QUESTION_UPVOTES、TOTAL_VIEWS 等），还有一个 count 字段表示这个类型的数量。
+// 函数会根据这些评定标准来计算用户应该获得多少金银铜徽章，并返回一个包含 GOLD、SILVER、BRONZE 字段的对象。
+export function assignBadges(params: {
+  criteria: {
+    type: keyof typeof BADGE_CRITERIA;
+    count: number;
+  }[];
+}) {
+  const badgeCounts: BadgeCounts = {
+    GOLD: 0,
+    SILVER: 0,
+    BRONZE: 0,
+  };
+
+  const { criteria } = params;
+
+  // 遍历每个评定标准，根据 BADGE_CRITERIA 来计算用户应该获得多少金银铜徽章，并累加到 badgeCounts 对象中。
+  criteria.forEach((item) => {
+    const { type, count } = item;
+    const badgeLevels = BADGE_CRITERIA[type];
+
+    Object.keys(badgeLevels).forEach((level) => {
+      // 如果用户在这个评定标准上的数量（count）达到了对应徽章等级的要求（badgeLevels[level]），就给用户加上这个等级的徽章。
+      if (count >= badgeLevels[level as keyof typeof badgeLevels]) {
+        badgeCounts[level as keyof BadgeCounts] += 1;
+      }
+    });
+  });
+
+  return badgeCounts;
+}

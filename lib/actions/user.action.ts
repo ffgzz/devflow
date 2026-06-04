@@ -6,6 +6,7 @@ import User from "@/database/user.model";
 import mongoose, { PipelineStage, Types } from "mongoose";
 import action from "../handlers/action";
 import handleError from "../handlers/error";
+import { assignBadges } from "../utils";
 import {
   GetUserAnswersSchema,
   GetUserQuestionsSchema,
@@ -80,6 +81,7 @@ export const getUsers = async (
   }
 };
 
+// 用于用户详情页的基本信息展示
 export const getUser = async (
   params: GetUserParams,
 ): Promise<
@@ -265,6 +267,87 @@ export const getUserTopTags = async (
     return {
       success: true,
       data: { tags: JSON.parse(JSON.stringify(tags)) },
+    };
+  } catch (error) {
+    return handleError(error) as ErrorResponse;
+  }
+};
+
+// 用于用户详情页的用户统计数据展示，包含用户的问题数量、答案数量、以及根据这些统计数据评定的徽章数量。
+// 这个接口会在用户详情页的统计信息部分展示，帮助用户了解自己的贡献情况和获得的认可。
+export const getUserStats = async (
+  params: GetUserParams,
+): Promise<
+  ActionResponse<{
+    totalQuestions: number;
+    totalAnswers: number;
+    badges: BadgeCounts;
+  }>
+> => {
+  const validationResult = await action({
+    params,
+    schema: GetUserSchema,
+  });
+
+  if (validationResult instanceof Error) {
+    return handleError(validationResult) as ErrorResponse;
+  }
+
+  const { userId } = validationResult.params;
+
+  try {
+    // 统计用户的问题和答案数量、问题的总 upvotes 数、问题的总 views 数，然后根据这些统计数据来评定用户应该获得哪些徽章。
+    const [questionStats] = await Question.aggregate([
+      { $match: { author: new Types.ObjectId(userId) } },
+      //
+      {
+        $group: {
+          // 表示不按某个字段分组，而是把所有匹配到的问题合并成一个总统计结果。
+          _id: null,
+          count: { $sum: 1 },
+          // 意思是统计结果里的 upvotes 字段 = 把每一条问题文档里的 upvotes 字段加起来
+          upvotes: { $sum: "$upvotes" },
+          views: { $sum: "$views" },
+        },
+      },
+    ]);
+
+    const [answerStats] = await Answer.aggregate([
+      { $match: { author: new Types.ObjectId(userId) } },
+      {
+        $group: {
+          _id: null,
+          count: { $sum: 1 },
+          upvotes: { $sum: "$upvotes" },
+        },
+      },
+    ]);
+
+    const totalQuestions = questionStats?.count || 0;
+    const totalAnswers = answerStats?.count || 0;
+    const questionUpvotes = questionStats?.upvotes || 0;
+    const answerUpvotes = answerStats?.upvotes || 0;
+    const totalViews = questionStats?.views || 0;
+
+    // assignBadges 函数的作用是：根据用户的统计数据来评定用户应该获得哪些徽章。
+    // 它接受一个 criteria 数组，数组里的每一项都是一个评定标准，包含一个 type 字段表示评定的类型（比如 ANSWER_COUNT、QUESTION_COUNT、QUESTION_UPVOTES、TOTAL_VIEWS 等），
+    // 还有一个 count 字段表示这个类型的数量。函数会根据这些评定标准来计算用户应该获得多少金银铜徽章，并返回一个包含 GOLD、SILVER、BRONZE 字段的对象。
+    const badges = assignBadges({
+      criteria: [
+        { type: "ANSWER_COUNT", count: totalAnswers },
+        { type: "QUESTION_COUNT", count: totalQuestions },
+        { type: "QUESTION_UPVOTES", count: questionUpvotes + answerUpvotes },
+        { type: "TOTAL_VIEWS", count: totalViews },
+      ],
+    });
+
+    return {
+      success: true,
+      data: {
+        totalQuestions,
+        totalAnswers,
+        badges,
+      },
     };
   } catch (error) {
     return handleError(error) as ErrorResponse;
