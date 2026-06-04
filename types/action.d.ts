@@ -112,15 +112,28 @@ interface CreateInteractionParams {
 }
 
 interface UpdateReputationParams {
+  // 这个写法是TS的内联类型导入
+  // 为什么这里不用顶部 import？
+  // 因为 types/action.d.ts 是一个全局声明文件。全局 .d.ts 文件里如果你在顶部写普通 import，这个文件会变成“模块文件”，
+  // 里面声明的 interface 可能就不再自动全局可用了
   interaction: import("@/database/interaction.model").IInteractionDoc;
   session: import("mongoose").ClientSession;
   performerId: string;
   authorId: string;
 }
 
+// 这个接口定义了推荐问题的参数类型，包含了用户ID、可选的查询字符串，以及分页参数（skip和limit）。
 interface RecommendationParams {
   userId: string;
   query?: string;
   skip: number;
   limit: number;
+}
+
+interface UpdateUserParams {
+  name: string;
+  username: string;
+  portfolio: string;
+  location: string;
+  bio: string;
 }

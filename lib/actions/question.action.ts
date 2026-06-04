@@ -265,12 +265,20 @@ export async function getQuestion(
   }
 }
 
+// 这个函数就是推荐算法的核心实现了。
+// 它首先根据用户的历史交互记录（比如浏览、点赞、收藏、提问等）来找出用户感兴趣的标签，
+// 然后基于这些标签来推荐相关的问题给用户。
+// 它还支持根据用户输入的搜索关键词来进一步过滤推荐结果。
 export async function getRecommendedQuestions({
   userId,
   query,
   skip,
   limit,
 }: RecommendationParams) {
+  // 首先获取用户的历史交互记录，找出用户最近与哪些问题有过交互（比如浏览、点赞、收藏、提问等）。
+  // 我们只关注那些与问题相关的交互记录，所以在查询 Interaction 集合时，我们加了一个条件 actionType: "question"，
+  // 同时我们也只关注那些 action 是 "view"、"upvote"、"bookmark" 或者 "post" 的交互记录。
+  // 我们按照 createdAt 字段降序排序，取最近的 50 条记录。
   const interactions = await Interaction.find({
     user: new Types.ObjectId(userId),
     actionType: "question",
@@ -278,20 +286,27 @@ export async function getRecommendedQuestions({
   })
     .sort({ createdAt: -1 })
     .limit(50)
+    // lean() 方法是 Mongoose 提供的一个方法，用于将查询结果转换为普通的 JavaScript 对象，而不是 Mongoose 文档对象。
+    // 使用 lean() 可以提高查询性能，特别是在我们不需要使用 Mongoose 文档对象的方法和功能时。由于我们在后续的代码中只是需要访问交互记录的字段，并不需要使用 Mongoose 文档对象的方法，所以使用 lean() 是一个更高效的选择。
     .lean();
 
   const interactedQuestionIds = interactions.map((i) => i.actionId);
-
+  // 找到最近交互过的问题对应的标签 ID 列表
+  // select() 是 Mongoose 用来控制“查询结果返回哪些字段”的方法。
   const interactedQuestions = await Question.find({
     _id: { $in: interactedQuestionIds },
   }).select("tags");
 
+  // flatMap 是 JavaScript 数组的一个方法，它的作用是先对数组中的每个元素执行一个映射函数，
+  // 然后将结果扁平化成一个新的数组。在这里，我们对 interactedQuestions 数组中的每个问题对象 q，取出它的 tags 字段（这是一个标签 ID 的数组），然后把这些标签 ID 都放到一个新的数组 allTags 里。这样我们就得到了一个包含了用户最近交互过的所有问题的标签 ID 的数组了。
   const allTags = interactedQuestions.flatMap((q) =>
     q.tags.map((tag: Types.ObjectId) => tag.toString()),
   );
-
+  // 去重
   const uniqueTagIds = [...new Set(allTags)];
 
+  // 构造推荐查询条件，排除用户已经交互过的问题，排除用户自己发布的问题，并且优先推荐那些包含用户感兴趣标签的问题。
+  // 如果用户输入了搜索关键词，还要在推荐的基础上进一步过滤，确保推荐结果的标题或者内容里包含这个关键词。
   const recommendedQuery: Record<string, unknown> = {
     _id: { $nin: interactedQuestionIds },
     author: { $ne: new Types.ObjectId(userId) },
@@ -306,10 +321,11 @@ export async function getRecommendedQuestions({
   }
 
   const total = await Question.countDocuments(recommendedQuery);
-
+  // 根据推荐查询条件来查询问题，并且按照 upvotes 和 views 来排序，分页返回给用户。我们同样使用 lean() 方法来提高查询性能。
   const questions = await Question.find(recommendedQuery)
     .populate("tags", "name")
     .populate("author", "name image")
+    // 按照点赞数和浏览数来排序，点赞数多的排在前面，如果点赞数一样就按照浏览数来排序，浏览数多的排在前面。
     .sort({ upvotes: -1, views: -1 })
     .skip(skip)
     .limit(limit)
@@ -334,13 +350,7 @@ export async function getQuestions(
     return handleError(validationResult) as ErrorResponse;
   }
 
-  const {
-    page = 1,
-    pageSize = 10,
-    query,
-    filter,
-    sort,
-  } = validationResult.params;
+  const { page = 1, pageSize = 10, query, filter } = validationResult.params;
   // skip 是 MongoDB 查询中的一个参数，用于指定在查询结果中跳过前面多少条记录。它通常与 limit 参数一起使用，用于实现分页功能。
   // 比如，如果 page 是 2，pageSize 是 10，那么 skip 就会是 (2 - 1) * 10 = 10，这意味着查询会跳过前面 10 条记录，返回从第 11 条开始的结果。
   const skip = (page - 1) * pageSize;
@@ -352,10 +362,11 @@ export async function getQuestions(
   let sortCriteria: Record<string, mongoose.SortOrder> = {};
 
   try {
+    // 如果 filter 是 "recommended"，我们就调用 getRecommendedQuestions 函数来获取推荐的问题列表，并且直接返回给客户端，不再执行后续的普通查询逻辑了。
     if (filter === "recommended") {
       const session = await auth();
       const userId = session?.user?.id;
-
+      // 如果用户没有登录，我们就无法根据用户的历史交互记录来推荐问题了，所以我们只能返回一个空的推荐列表，并且 isNext 是 false，表示没有下一页了。
       if (!userId) {
         return { success: true, data: { questions: [], isNext: false } };
       }

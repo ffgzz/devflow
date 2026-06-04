@@ -12,6 +12,7 @@ import {
   GetUserQuestionsSchema,
   GetUserSchema,
   PaginatedSearchParamsSchema,
+  UpdateUserSchema,
 } from "../validations";
 
 // 用于 Community 页面获取用户列表
@@ -348,6 +349,36 @@ export const getUserStats = async (
         totalAnswers,
         badges,
       },
+    };
+  } catch (error) {
+    return handleError(error) as ErrorResponse;
+  }
+};
+
+// 用于用户编辑个人资料的接口，这个接口会在用户编辑个人资料的表单提交时被调用。它会验证用户输入的数据是否合法，如果合法就更新数据库中的用户信息，并返回更新后的用户数据；如果不合法或者更新过程中发生错误，就返回相应的错误信息。
+export const updateUser = async (
+  params: UpdateUserParams,
+): Promise<ActionResponse<{ user: User }>> => {
+  const validationResult = await action({
+    params,
+    schema: UpdateUserSchema,
+    authorize: true,
+  });
+
+  if (validationResult instanceof Error) {
+    return handleError(validationResult) as ErrorResponse;
+  }
+
+  const { user } = validationResult.session!;
+
+  try {
+    const updatedUser = await User.findByIdAndUpdate(user?.id, params, {
+      new: true,
+    });
+
+    return {
+      success: true,
+      data: { user: JSON.parse(JSON.stringify(updatedUser)) },
     };
   } catch (error) {
     return handleError(error) as ErrorResponse;

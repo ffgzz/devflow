@@ -116,6 +116,7 @@ const AuthForm = <TSchema extends AnyZodObject>({
                       id={name}
                       required
                       type={getInputType(name)}
+                      // 这个是一个无障碍属性：意思是告诉浏览器和辅助工具：这个表单字段当前是不是无效的。
                       aria-invalid={fieldState.invalid}
                       disabled={form.formState.isSubmitting}
                       value={typeof field.value === "string" ? field.value : ""}

@@ -103,11 +103,10 @@ const Profile = async ({ params, searchParams }: RouteParams) => {
     _id,
     name,
     image,
-    prortfolio,
+    portfolio,
     location,
     createdAt,
     username,
-    email,
     bio,
   } = user;
 
@@ -132,16 +131,16 @@ const Profile = async ({ params, searchParams }: RouteParams) => {
             </p>
 
             <div className="mt-5 flex flex-wrap items-center justify-start gap-5">
-              {prortfolio && (
+              {portfolio && (
                 <ProfileLink
                   imgUrl="/icons/link.svg"
-                  href={prortfolio}
+                  href={portfolio}
                   title="Portfolio"
                 />
               )}
 
               {location && (
-                <ProfileLink imgUrl="/icons/location.svg" title="Location" />
+                <ProfileLink imgUrl="/icons/location.svg" title={location} />
               )}
 
               <ProfileLink

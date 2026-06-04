@@ -77,7 +77,7 @@ interface User {
   bio?: string;
   image?: string;
   location?: string;
-  prortfolio?: string;
+  portfolio?: string;
   reputation?: number;
   createdAt: Date;
 }
