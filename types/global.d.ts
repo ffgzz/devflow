@@ -1,6 +1,7 @@
 interface Tag {
   _id: string;
   name: string;
+  questions?: number;
 }
 
 interface Author {
@@ -64,6 +65,8 @@ interface Answer {
   createdAt: Date;
   upvotes: number;
   downvotes: number;
+  // 所属问题的 id
+  question: string;
 }
 
 interface User {
@@ -71,15 +74,23 @@ interface User {
   name: string;
   email: string;
   username: string;
-  image?: string;
   bio?: string;
+  image?: string;
   location?: string;
   prortfolio?: string;
   reputation?: number;
+  createdAt: Date;
 }
 
 interface Collection {
   _id: string;
   author: string | Author;
   question: Question;
+}
+
+// 用于显示在用户个人资料页的统计数据
+interface BadgeCounts {
+  GOLD: number;
+  SILVER: number;
+  BRONZE: number;
 }

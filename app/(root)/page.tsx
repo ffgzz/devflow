@@ -1,8 +1,11 @@
 import QuestionCard from "@/components/cards/QuestionCard";
 import DataRenderer from "@/components/DataRenderer";
+import CommonFilter from "@/components/filters/CommonFilter";
 import HomeFilter from "@/components/filters/HomeFilter";
+import Pagination from "@/components/Pagination";
 import LocalSearch from "@/components/search/LocalSearch";
 import { Button } from "@/components/ui/button";
+import { HomePageFilters } from "@/constants/filters";
 import ROUTES from "@/constants/routes";
 import { EMPTY_QUESTION } from "@/constants/states";
 import { getQuestions } from "@/lib/actions/question.action";
@@ -21,7 +24,7 @@ export default async function Home({ searchParams }: SearchParams) {
     query,
     filter,
   });
-  const { questions } = data || {};
+  const { questions, isNext } = data || {};
 
   // 根据 query 和 filter 来过滤问题列表
   // const filteredQuestions = questions?.filter((question) =>
@@ -45,12 +48,19 @@ export default async function Home({ searchParams }: SearchParams) {
           <Link href={ROUTES.ASK_QUESTION}>Ask a Question</Link>
         </Button>
       </section>
-      <section className="mt-11">
+
+      <section className="mt-11 flex justify-between gap-5 max-sm:flex-col sm:items-center">
         <LocalSearch
           route="/"
           imgSrc="/icons/search.svg"
           placeholder="Search questions..."
           otherClasses="flex-1"
+        />
+
+        <CommonFilter
+          filters={HomePageFilters}
+          otherClasses="min-h-[56px] sm:min-w-[170px]"
+          containerClasses="hidden max-md:flex"
         />
       </section>
 
@@ -72,8 +82,10 @@ export default async function Home({ searchParams }: SearchParams) {
         )}
       />
 
+      <Pagination page={page} isNext={isNext || false} />
+
       {/* 获取成功才显示问题列表
-      {success ? (
+      {success ? ( 
         <div className="mt-10 flex w-full flex-col gap-6">
           {questions && questions.length > 0 ? (
             questions.map((question) => (

@@ -50,6 +50,7 @@ async function action<T>({
     }
   }
 
+  // 最后我们调用 dbConnect 函数来连接数据库。这个函数是我们在 mongoose.ts 里定义的一个函数，它会检查当前是否已经有一个数据库连接，如果没有的话就创建一个新的连接。通过调用这个函数，我们确保在执行后续的数据库操作之前，已经成功连接到了数据库。
   await dbConnect();
 
   return { params, session };

@@ -1,6 +1,9 @@
 import TagCard from "@/components/cards/TagCard";
 import DataRenderer from "@/components/DataRenderer";
+import CommonFilter from "@/components/filters/CommonFilter";
+import Pagination from "@/components/Pagination";
 import LocalSearch from "@/components/search/LocalSearch";
+import { TagFilters } from "@/constants/filters";
 import ROUTES from "@/constants/routes";
 import { EMPTY_TAGS } from "@/constants/states";
 import { getTags } from "@/lib/actions/tag.action";
@@ -15,14 +18,14 @@ const Tags = async ({ searchParams }: RouteParams) => {
     filter,
   });
 
-  const { tags } = data || {};
+  const { tags, isNext } = data || {};
   console.log("tags", JSON.stringify(tags, null, 2));
 
   return (
     <>
       <h1 className="h1-bold text-dark100_light900">Tags</h1>
 
-      <section className="mt-11">
+      <div className="mt-11 flex justify-between sm:items-center gap-5 max-sm:flex-col ">
         <LocalSearch
           route={ROUTES.TAGS}
           imgSrc="/icons/search.svg"
@@ -30,7 +33,12 @@ const Tags = async ({ searchParams }: RouteParams) => {
           iconPosition="left"
           otherClasses="flex-1"
         />
-      </section>
+
+        <CommonFilter
+          filters={TagFilters}
+          otherClasses="min-h-[56px] sm:min-w-[170px]"
+        />
+      </div>
 
       <DataRenderer
         success={success}
@@ -45,6 +53,8 @@ const Tags = async ({ searchParams }: RouteParams) => {
           </div>
         )}
       />
+
+      <Pagination page={page} isNext={isNext || false} />
     </>
   );
 };

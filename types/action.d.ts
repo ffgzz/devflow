@@ -68,3 +68,23 @@ interface HasVotedResponse {
 interface CollectionBaseParams {
   questionId: string;
 }
+
+interface GetUserParams {
+  userId: string;
+}
+
+// 用户详情页只展示该用户的问题，不需要排序或者筛选
+interface GetUserQuestionsParams extends Omit<
+  PaginatedSearchParams,
+  "filter" | "query"
+> {
+  userId: string;
+}
+
+interface GetUserAnswersParams extends PaginatedSearchParams {
+  userId: string;
+}
+
+interface GetUserTagsParams {
+  userId: string;
+}

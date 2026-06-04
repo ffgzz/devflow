@@ -26,6 +26,7 @@ export async function fetchHandler<T>(
   // 创建一个AbortController实例，用于在请求超时时取消请求
   const controller = new AbortController();
   const timeoutId = setTimeout(() => {
+    // 当请求超时时，调用controller.abort()来取消请求，这会触发fetch的catch块，并且err.name会是"AbortError"
     controller.abort();
   }, timeout);
 

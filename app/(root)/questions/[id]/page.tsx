@@ -8,7 +8,7 @@ import UserAvatar from "@/components/UserAvatar";
 import Votes from "@/components/votes/Votes";
 import ROUTES from "@/constants/routes";
 import { getAnswers } from "@/lib/actions/answer.action";
-import { hasSvaedQuestion } from "@/lib/actions/collection.action";
+import { hasSavedQuestion } from "@/lib/actions/collection.action";
 import { getQuestion, incrementViews } from "@/lib/actions/question.action";
 import { hasVoted } from "@/lib/actions/vote.action";
 import { formatNumber, getTimeStamp } from "@/lib/utils";
@@ -17,8 +17,9 @@ import { redirect } from "next/navigation";
 import { after } from "next/server";
 import { Suspense } from "react";
 
-const QuestionDetails = async ({ params }: RouteParams) => {
+const QuestionDetails = async ({ params, searchParams }: RouteParams) => {
   const { id } = await params;
+  const { page, pageSize, filter } = await searchParams;
   // 获取问题的详细信息，包括标题、内容、作者、标签、浏览量等
   const { success, data: question } = await getQuestion({ questionId: id });
 
@@ -42,17 +43,18 @@ const QuestionDetails = async ({ params }: RouteParams) => {
     errors: AnswersErrors,
   } = await getAnswers({
     questionId: id,
-    page: 1,
-    pageSize: 10,
-    filter: "latest",
+    page: Number(page) || 1,
+    pageSize: Number(pageSize) || 10,
+    filter,
   });
   // 获取用户是否已经对这个问题投过票，这样我们就可以在界面上正确显示投票按钮的状态（已投票或未投票）
   const hasVotedPromise = hasVoted({
     targetId: id,
     targetType: "question",
   });
+
   // 获取用户是否已经收藏过这个问题，这样我们就可以在界面上正确显示收藏按钮的状态（已收藏或未收藏）
-  const hasSavedQuestionPromise = hasSvaedQuestion({
+  const hasSavedQuestionPromise = hasSavedQuestion({
     questionId: id,
   });
 
@@ -66,6 +68,7 @@ const QuestionDetails = async ({ params }: RouteParams) => {
             <UserAvatar
               id="author-id"
               name="Author Name"
+              imageUrl={author.image}
               className="size-[22px]"
               falllbackClassName="text-[10px]"
             />
@@ -130,6 +133,7 @@ const QuestionDetails = async ({ params }: RouteParams) => {
         />
       </div>
 
+      {/* 问题内容预览 */}
       <Preview content={content} />
 
       <div className="mt-8 flex flex-wrap gap-2">
@@ -139,8 +143,11 @@ const QuestionDetails = async ({ params }: RouteParams) => {
         ))}
       </div>
 
+      {/* 回答部分 */}
       <section className="my-5">
         <AllAnswers
+          page={Number(page) || 1}
+          isNext={answersResult?.isNext || false}
           data={answersResult?.answers}
           success={areAnswersLoaded}
           errors={AnswersErrors}
@@ -148,7 +155,7 @@ const QuestionDetails = async ({ params }: RouteParams) => {
         />
       </section>
 
-      {/* 创建答案的表单 */}
+      {/* 创建回答的表单 */}
       <section className="my-5">
         <AnswerForm
           questionId={id}

@@ -30,8 +30,8 @@ export const toggleSaveQuestion = async (
   const userId = validationResult.session?.user?.id;
 
   try {
-    const qustion = await Question.findById(questionId);
-    if (!qustion) throw new Error("Question not found");
+    const question = await Question.findById(questionId);
+    if (!question) throw new Error("Question not found");
 
     const collection = await Collection.findOne({
       author: userId,
@@ -40,6 +40,8 @@ export const toggleSaveQuestion = async (
     // 如果收藏夹中已经存在该问题，则意味着用户想要取消收藏，所以我们删除该收藏记录
     if (collection) {
       await Collection.findByIdAndDelete(collection._id);
+
+      revalidatePath(ROUTES.QUESTION(questionId));
 
       return {
         success: true,
@@ -64,7 +66,7 @@ export const toggleSaveQuestion = async (
 };
 
 // 用户是否收藏了当前问题
-export const hasSvaedQuestion = async (
+export const hasSavedQuestion = async (
   params: CollectionBaseParams,
 ): Promise<ActionResponse<{ saved: boolean }>> => {
   const validationResult = await action({
@@ -95,12 +97,14 @@ export const hasSvaedQuestion = async (
   }
 };
 
+// 获取用户收藏的问题列表，并支持分页、搜索和排序功能
 export const getSavedQuestions = async (
   params: PaginatedSearchParams,
 ): Promise<ActionResponse<{ collection: Collection[]; isNext: boolean }>> => {
   const validationResult = await action({
     params,
     schema: PaginatedSearchParamsSchema,
+    // 登录了才能访问收藏列表，因为收藏是用户特有的数据，所以我们需要确保用户已经登录了才能获取他们的收藏列表。
     authorize: true,
   });
 
@@ -118,7 +122,7 @@ export const getSavedQuestions = async (
     mostrecent: { "question.createdAt": -1 },
     oldest: { "question.createdAt": 1 },
     mostvoted: { "question.upvotes": -1 },
-    mostViewed: { "question.views": -1 },
+    mostviewed: { "question.views": -1 },
     mostanswered: { "question.answers": -1 },
   };
 

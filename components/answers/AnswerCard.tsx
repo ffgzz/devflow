@@ -1,11 +1,18 @@
 import ROUTES from "@/constants/routes";
-import { getTimeStamp } from "@/lib/utils";
+import { hasVoted } from "@/lib/actions/vote.action";
+import { cn, getTimeStamp } from "@/lib/utils";
 import Link from "next/link";
+import { Suspense } from "react";
 import UserAvatar from "../UserAvatar";
 import Preview from "../editor/Preview";
-import { Suspense } from "react";
+import EditDeleteAction from "../user/EditDeleteAction";
 import Votes from "../votes/Votes";
-import { hasVoted } from "@/lib/actions/vote.action";
+
+interface Props extends Answer {
+  containerClasses?: string;
+  showReadMore?: boolean;
+  showActionBtns?: boolean;
+}
 
 const AnswerCard = ({
   _id,
@@ -14,7 +21,11 @@ const AnswerCard = ({
   createdAt,
   upvotes,
   downvotes,
-}: Answer) => {
+  question,
+  containerClasses = "",
+  showReadMore = false,
+  showActionBtns,
+}: Props) => {
   // 获取用户是否已经投过票的信息
   const hasVotedPromise = hasVoted({
     targetId: _id,
@@ -22,8 +33,17 @@ const AnswerCard = ({
   });
 
   return (
-    <article className="light-border border-b py-10">
-      <span id={JSON.stringify(_id)} className="hash-span" />
+    <article
+      className={cn(containerClasses, "light-border border-b py-10 relative")}
+    >
+      <span id={`answer-${_id}`} className="hash-span" />
+
+      {showActionBtns && (
+        <div className="background-light800_dark200 flex-center absolute top-5 right-2 size-9 rounded-full">
+          <EditDeleteAction type="Answer" itemId={_id} />
+        </div>
+      )}
+
       <div
         className="mb-5 flex max-sm:flex-col-reverse max-sm:gap-5 justify-between 
         items-center gap-2"
@@ -50,6 +70,7 @@ const AnswerCard = ({
         </div>
 
         <div className="flex justify-end">
+          {/* Suspense 的作用是：在组件渲染过程中，如果某个异步操作还未完成，可以显示一个加载状态 */}
           <Suspense fallback={<div>Loading votes...</div>}>
             <Votes
               upvotes={upvotes}
@@ -64,6 +85,16 @@ const AnswerCard = ({
 
       {/* 渲染答案的内容 */}
       <Preview content={content} />
+
+      {/* 用户详情页的答案卡片需要显示这个 */}
+      {showReadMore && (
+        <Link
+          href={`/questions/${question}#answer-${_id}`}
+          className="body-semibold z-10 font-space-grotesk text-primary-500"
+        >
+          <p className="mt-1">Read more...</p>
+        </Link>
+      )}
     </article>
   );
 };

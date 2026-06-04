@@ -201,3 +201,19 @@ export const hasVotedSchema = CreateVoteSchema.pick({
 export const CollectionBaseSchema = z.object({
   questionId: z.string().min(1, "Question ID is required"),
 });
+
+export const GetUserSchema = z.object({
+  userId: z.string().min(1, "User ID is required"),
+});
+
+export const GetUserQuestionsSchema = PaginatedSearchParamsSchema.extend({
+  userId: z.string().min(1, "User ID is required"),
+});
+
+export const GetUserAnswersSchema = PaginatedSearchParamsSchema.extend({
+  userId: z.string().min(1, "User ID is required"),
+});
+
+export const GetUserTagsSchema = z.object({
+  userId: z.string().min(1, "User ID is required"),
+});

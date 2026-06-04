@@ -20,7 +20,7 @@ const EditQuestion = async ({ params }: RouteParams) => {
   const { data: question, success } = await getQuestion({ questionId: id });
   if (!success) return notFound();
   // 只有问题的作者才能编辑问题，如果当前登录用户不是问题的作者，重定向到问题详情页面
-  if (question?.author.toString() !== session?.user?.id) {
+  if (question?.author._id.toString() !== session?.user?.id) {
     return redirect(ROUTES.QUESTION(id));
   }
 
