@@ -1,14 +1,19 @@
 "use server";
 
+import Answer from "@/database/answer.model";
+import Collection from "@/database/collection.model";
 import Question, { IQuestionDoc } from "@/database/question.model";
 import TagQuestion from "@/database/tag-question.model";
 import Tag, { ITagDoc } from "@/database/tag.model";
+import Vote from "@/database/vote.model";
 import mongoose from "mongoose";
+import { revalidatePath } from "next/cache";
 import action from "../handlers/action";
 import handleError from "../handlers/error";
 import { dbConnect } from "../mongoose";
 import {
   AskQuestionSchema,
+  DeleteQuestionSchema,
   EditQuestionSchema,
   GetQuestionSchema,
   IncrementViewsSchema,
@@ -380,3 +385,80 @@ export const getHotQuestions = async (): Promise<
     return handleError(error) as ErrorResponse;
   }
 };
+
+// 删除问题的函数，只有问题的作者才能删除自己的问题
+export async function deleteQuestion(
+  params: DeleteQuestionParams,
+): Promise<ActionResponse> {
+  const validationResult = await action({
+    params,
+    schema: DeleteQuestionSchema,
+    authorize: true,
+  });
+
+  if (validationResult instanceof Error) {
+    return handleError(validationResult) as ErrorResponse;
+  }
+
+  const { questionId } = validationResult.params;
+  const { user } = validationResult.session!;
+  const session = await mongoose.startSession();
+
+  try {
+    // 开启事务，因为删除一个问题需要删除多个相关的文档（比如这个问题的收藏记录、标签关联记录、投票记录、以及这个问题下的所有回答和它们的投票记录），我们需要确保这些操作要么全部成功，要么全部失败，以保持数据的一致性。
+    session.startTransaction();
+
+    const question = await Question.findById(questionId).session(session);
+    if (!question) throw new Error("Question not found");
+    // 必须是自己的才能删，不能删除别人的问题
+    if (question.author.toString() !== user?.id) {
+      throw new Error("You are not authorized to delete this question");
+    }
+
+    // 删除这个问题相关的收藏记录和标签关联记录
+    await Collection.deleteMany({ question: questionId }).session(session);
+    await TagQuestion.deleteMany({ question: questionId }).session(session);
+    // 如果这个问题有关联的标签，我们还需要把这些标签的 questions 数量 -1，以保持数据的一致性。
+    if (question.tags.length > 0) {
+      await Tag.updateMany(
+        { _id: { $in: question.tags } },
+        { $inc: { questions: -1 } },
+        { session },
+      );
+    }
+    // 删除这个问题的投票记录
+    await Vote.deleteMany({
+      id: questionId,
+      type: "question",
+    }).session(session);
+
+    const answers = await Answer.find({ question: questionId }).session(
+      session,
+    );
+    // 删除这个问题下的所有回答以及它们的投票记录。我们先找到这个问题下的所有回答，如果有回答的话，我们就把这些回答的 ID 收集起来，
+    // 然后在 Vote 集合里删除那些 id 在这个回答 ID 列表里的投票记录，最后再删除这些回答。
+    if (answers.length > 0) {
+      await Answer.deleteMany({ question: questionId }).session(session);
+      // 删除这些回答的投票记录。我们使用 $in 操作符来指定那些 id 在 answers.map((answer) => answer._id) 这个数组里的投票记录都要被删除掉。同时我们也要指定 type: "answer"，确保只删除回答的投票记录，而不误删了其他类型的投票记录。
+      await Vote.deleteMany({
+        id: { $in: answers.map((answer) => answer._id) },
+        type: "answer",
+      }).session(session);
+    }
+    // 最后删除这个问题
+    await Question.findByIdAndDelete(questionId).session(session);
+    // 提交事务
+    await session.commitTransaction();
+    // revalidatePath 是 Next.js 提供的一个函数，用于在服务器端重新验证指定路径的数据。
+    // 当我们在服务器端执行某些操作（比如删除了一个问题）之后，我们可能需要让客户端知道这个操作已经完成了，以便它可以更新页面上的数据。通过调用 revalidatePath(`/profile/${user?.id}`)，
+    // 我们告诉 Next.js 重新验证这个用户个人主页的数据，这样当用户刷新个人主页或者访问个人主页时，就会看到最新的数据了。
+    revalidatePath(`/profile/${user?.id}`);
+
+    return { success: true };
+  } catch (error) {
+    await session.abortTransaction();
+    return handleError(error) as ErrorResponse;
+  } finally {
+    await session.endSession();
+  }
+}

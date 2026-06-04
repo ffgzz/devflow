@@ -3,11 +3,16 @@
 import ROUTES from "@/constants/routes";
 import Answer, { IAnswerDoc } from "@/database/answer.model";
 import Question from "@/database/question.model";
+import Vote from "@/database/vote.model";
 import mongoose from "mongoose";
 import { revalidatePath } from "next/cache";
 import action from "../handlers/action";
 import handleError from "../handlers/error";
-import { AnswerServerSchema, GetAnswersSchema } from "../validations";
+import {
+  AnswerServerSchema,
+  DeleteAnswerSchema,
+  GetAnswersSchema,
+} from "../validations";
 
 export async function createAnswer(
   params: CreateAnswerParams,
@@ -120,6 +125,50 @@ export async function getAnswers(
         totalAnswers,
       },
     };
+  } catch (error) {
+    return handleError(error) as ErrorResponse;
+  }
+}
+
+// 删除答案的函数，只有答案的作者才能删除自己的答案
+export async function deleteAnswer(
+  params: DeleteAnswerParams,
+): Promise<ActionResponse> {
+  const validationResult = await action({
+    params,
+    schema: DeleteAnswerSchema,
+    // 必须登录才能执行删除
+    authorize: true,
+  });
+
+  if (validationResult instanceof Error) {
+    return handleError(validationResult) as ErrorResponse;
+  }
+
+  const { answerId } = validationResult.params;
+  const { user } = validationResult.session!;
+
+  try {
+    const answer = await Answer.findById(answerId);
+    if (!answer) throw new Error("Answer not found");
+    // 必须是自己的答案才能删除，不能删除别人的答案
+    if (answer.author.toString() !== user?.id) {
+      throw new Error("You're not allowed to delete this answer");
+    }
+    // 先把对应问题的 answers 字段减 1，以保持数据的一致性。
+    await Question.findByIdAndUpdate(
+      answer.question,
+      { $inc: { answers: -1 } },
+      { new: true },
+    );
+
+    // 然后删除这个答案，同时也删除与这个答案相关的投票记录，以保持数据的整洁。
+    await Vote.deleteMany({ id: answerId, type: "answer" });
+    await Answer.findByIdAndDelete(answerId);
+
+    revalidatePath(`/profile/${user?.id}`);
+
+    return { success: true };
   } catch (error) {
     return handleError(error) as ErrorResponse;
   }

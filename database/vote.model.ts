@@ -13,6 +13,7 @@ const VoteSchema = new Schema<IVote>(
     author: { type: Schema.Types.ObjectId, ref: "User", required: true },
     // 投票的对象可以是问题或者回答，所以我们需要一个字段来区分投票的类型，以及一个字段来存储被投票对象的ID
     type: { type: String, enum: ["question", "answer"], required: true },
+    // 被投票对象的ID，这个ID可以是问题的ID，也可以是回答的ID，取决于 type 字段的值
     id: { type: Schema.Types.ObjectId, required: true },
     // 表示是点赞还是点踩
     voteType: { type: String, enum: ["upvote", "downvote"], required: true },

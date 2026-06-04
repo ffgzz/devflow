@@ -11,6 +11,8 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { deleteAnswer } from "@/lib/actions/answer.action";
+import { deleteQuestion } from "@/lib/actions/question.action";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -28,15 +30,35 @@ const EditDeleteAction = ({ type, itemId }: Props) => {
       router.push(`/questions/${itemId}/edit`);
     }
   };
+
+  // 删除问题或答案的函数
   const handleDelete = async () => {
-    if (type === "Question") {
-      toast.success("Question deleted successfully!", {
-        description: "Your question has been removed.",
+    try {
+      const result =
+        type === "Question"
+          ? await deleteQuestion({ questionId: itemId })
+          : await deleteAnswer({ answerId: itemId });
+
+      if (!result.success) {
+        throw new Error(result.errors?.message || `Failed to delete ${type}`);
+      }
+
+      toast.success(`${type} deleted successfully!`, {
+        description:
+          type === "Question"
+            ? "Your question has been removed."
+            : "Your answer has been removed.",
         position: "top-center",
       });
-    } else if (type === "Answer") {
-      toast.success("Answer deleted successfully!", {
-        description: "Your answer has been removed.",
+
+      // router.refresh() 是 App Router 里客户端组件用来刷新当前路由数据 的方法。
+      // 它的作用不是浏览器那种完整刷新页面，而是：
+      // 重新向服务端请求当前路由的 React Server Component 数据，让 Server Component 重新渲染，然后把新结果合并回当前页面。
+      router.refresh();
+    } catch (error) {
+      toast.error(`Failed to delete ${type.toLowerCase()}`, {
+        description:
+          error instanceof Error ? error.message : "An unknown error occurred",
         position: "top-center",
       });
     }

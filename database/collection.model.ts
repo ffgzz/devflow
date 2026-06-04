@@ -9,6 +9,7 @@ export interface ICollection {
 
 const CollectionSchema = new Schema<ICollection>(
   {
+    // 收藏的问题的作者，关联到 User 模型
     author: { type: Schema.Types.ObjectId, ref: "User", required: true },
     question: { type: Schema.Types.ObjectId, ref: "Question", required: true },
   },
