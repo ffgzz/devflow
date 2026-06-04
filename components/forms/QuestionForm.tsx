@@ -121,7 +121,8 @@ const QuestionForm = ({ question, isEdit = false }: Params) => {
             description: "Your question has been updated successfully.",
             position: "top-center",
           });
-          if (result.data) router.push(ROUTES.QUESTION(result.data._id));
+          if (result.data)
+            router.push(ROUTES.QUESTION(result.data._id.toString()));
           else
             toast.error(`Error ${result.status}`, {
               description:
@@ -142,7 +143,8 @@ const QuestionForm = ({ question, isEdit = false }: Params) => {
           description: "Your question has been created successfully.",
           position: "top-center",
         });
-        if (result.data) router.push(ROUTES.QUESTION(result.data._id));
+        if (result.data)
+          router.push(ROUTES.QUESTION(result.data._id.toString()));
         else
           toast.error(`Error ${result.status}`, {
             description:

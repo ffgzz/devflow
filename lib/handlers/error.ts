@@ -29,8 +29,16 @@ const formatResponse = (
     : ({ status, ...responseContent } as ActionResponse);
 };
 
+function handleError(error: unknown, responseType: "api"): NextResponse;
+function handleError(
+  error: unknown,
+  responseType?: "server",
+): ActionResponse<null>;
 // 定义一个统一的错误处理函数，根据错误类型返回适当的响应
-const handleError = (error: unknown, responseType: ResponseType = "server") => {
+function handleError(
+  error: unknown,
+  responseType: ResponseType = "server",
+): NextResponse | ActionResponse<null> {
   // 处理自定义的 RequestError 错误，返回格式化的响应
   if (error instanceof RequestError) {
     logger.error(
@@ -101,6 +109,6 @@ const handleError = (error: unknown, responseType: ResponseType = "server") => {
   // 对于未知错误（默认情况下），返回一个通用的错误响应
   // 因为 throw 不止能抛出 Error 对象，还可以抛出任何类型的值（比如字符串、数字、甚至 undefined），所以我们需要一个兜底的处理来应对这些情况。
   return formatResponse(responseType, 500, "An unknown error occurred.");
-};
+}
 
 export default handleError;

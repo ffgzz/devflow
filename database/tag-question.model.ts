@@ -1,4 +1,4 @@
-import { model, models, Schema, Types } from "mongoose";
+import { Document, model, models, Schema, Types } from "mongoose";
 
 export interface ITagQuestion {
   tag: Types.ObjectId; // 关联的标签ID
