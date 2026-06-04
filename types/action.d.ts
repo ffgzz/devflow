@@ -130,10 +130,20 @@ interface RecommendationParams {
   limit: number;
 }
 
+interface JobFilterParams {
+  query: string;
+  page: string;
+}
+
 interface UpdateUserParams {
   name: string;
   username: string;
   portfolio: string;
   location: string;
   bio: string;
+}
+
+interface GlobalSearchParams {
+  query: string;
+  type: string | null;
 }

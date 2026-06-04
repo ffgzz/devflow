@@ -1,7 +1,9 @@
 import { auth } from "@/auth";
+import GlobalSearch from "@/components/search/GlobalSearch";
 import UserAvatar from "@/components/UserAvatar";
 import Image from "next/image";
 import Link from "next/link";
+import { Suspense } from "react";
 import Mobilenavigation from "./Mobilenavigation";
 import Theme from "./Theme";
 
@@ -23,15 +25,19 @@ const Navbar = async () => {
         </p>
       </Link>
 
-      <p>Global Search</p>
+      <Suspense
+        fallback={<div className="w-full max-w-[600px] max-lg:hidden" />}
+      >
+        <GlobalSearch />
+      </Suspense>
 
       <div className="flex-between gap-5">
         <Theme />
 
         {userId && (
           <UserAvatar
-            id={userId!}
-            name={session?.user?.name!}
+            id={userId}
+            name={session?.user?.name || "User"}
             imageUrl={session?.user?.image}
           />
         )}

@@ -124,3 +124,27 @@ export function assignBadges(params: {
 
   return badgeCounts;
 }
+
+// 这个函数用于处理职位标题字符串，确保它不会包含无效的词汇（如 "undefined" 或 "null"），并且如果输入的标题无效或为空时，返回一个默认的标题 "No Job Title"。
+export function processJobTitle(title: string | undefined | null): string {
+  if (title === undefined || title === null) {
+    return "No Job Title";
+  }
+
+  const words = title.split(" ");
+
+  const validWords = words.filter((word) => {
+    return (
+      word !== undefined &&
+      word !== null &&
+      word.toLowerCase() !== "undefined" &&
+      word.toLowerCase() !== "null"
+    );
+  });
+
+  if (validWords.length === 0) {
+    return "No Job Title";
+  }
+
+  return validWords.join(" ");
+}

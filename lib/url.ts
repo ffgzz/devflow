@@ -7,7 +7,7 @@ import qs from "query-string";
 interface UrlQueryParams {
   params: string; // 当前 URL 的查询参数字符串，例如 "query=react&page=2"
   key: string;
-  value: string;
+  value: string | null;
 }
 
 interface RemoveUrlQueryParams {
@@ -23,10 +23,13 @@ export const formUrlQuery = ({ params, key, value }: UrlQueryParams) => {
   // 更新或添加新的查询参数
   currentUrl[key] = value;
   // 把路径和查询参数对象重新拼成一个完整 URL
-  return qs.stringifyUrl({
-    url: window.location.pathname,
-    query: currentUrl,
-  });
+  return qs.stringifyUrl(
+    {
+      url: window.location.pathname,
+      query: currentUrl,
+    },
+    { skipNull: true },
+  );
 };
 
 // 定义：该函数用于从当前的 URL 查询参数中移除一个或多个指定的查询参数，并返回新的查询字符串。

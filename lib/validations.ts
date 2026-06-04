@@ -262,3 +262,8 @@ export const ProfileSchema = z.object({
 });
 
 export const UpdateUserSchema = ProfileSchema;
+
+export const GlobalSearchSchema = z.object({
+  query: z.string(),
+  type: z.string().nullable().optional(),
+});

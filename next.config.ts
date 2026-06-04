@@ -22,6 +22,17 @@ const nextConfig: NextConfig = {
         hostname: "avatars.githubusercontent.com",
         port: "",
       },
+      {
+        protocol: "https",
+        hostname: "flagsapi.com",
+        port: "",
+      },
+      {
+        protocol: "https",
+        // 允许加载任意 https 域名下的图片。
+        hostname: "**",
+        port: "",
+      },
     ],
   },
 };
