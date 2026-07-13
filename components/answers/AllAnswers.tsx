@@ -3,12 +3,16 @@ import { EMPTY_ANSWERS } from "@/constants/states";
 import DataRenderer from "../DataRenderer";
 import CommonFilter from "../filters/CommonFilter";
 import Pagination from "../Pagination";
+import { AnswerAcceptanceProvider } from "./AnswerAcceptanceControl";
 import AnswerCard from "./AnswerCard";
 
 interface Props extends ActionResponse<Answer[]> {
   totalAnswers: number;
   page: number;
   isNext: boolean;
+  questionId: string;
+  acceptedAnswerId: string | null;
+  canManageAcceptance: boolean;
 }
 
 const AllAnswers = ({
@@ -18,6 +22,9 @@ const AllAnswers = ({
   success,
   errors,
   totalAnswers,
+  questionId,
+  acceptedAnswerId,
+  canManageAcceptance,
 }: Props) => {
   return (
     <div className="mt-11">
@@ -39,11 +46,20 @@ const AllAnswers = ({
         error={errors}
         empty={EMPTY_ANSWERS}
         render={(answers) =>
-          answers.map((answer) => <AnswerCard key={answer._id} {...answer} />)
+          <AnswerAcceptanceProvider
+            key={questionId}
+            questionId={questionId}
+            initialAcceptedAnswerId={acceptedAnswerId}
+            canManageAcceptance={canManageAcceptance}
+          >
+            {answers.map((answer) => (
+              <AnswerCard key={answer._id} {...answer} />
+            ))}
+          </AnswerAcceptanceProvider>
         }
       />
 
-      <Pagination page={page} isNext={isNext} />
+      <Pagination page={page} isNext={isNext} resetKeys={["answer"]} />
     </div>
   );
 };

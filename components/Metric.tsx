@@ -10,7 +10,6 @@ interface Props {
   title: string; // 指标的标题，比如数值后面的 "Votes"、"Answers"、"Views"
   imgStyles?: string; // 可选的图标样式类
   textStyles?: string; // 可选的文本样式类
-  isAuthor?: boolean; // 作者信息的样式不太一样
   href?: string; // 可选的链接地址，如果提供了这个属性，整个组件应该是可点击的，并且会导航到这个链接
   titleStyles?: string; // 可选的标题样式类
 }
@@ -22,7 +21,6 @@ const Metric = ({
   title,
   imgStyles,
   textStyles,
-  isAuthor,
   href,
   titleStyles,
 }: Props) => {

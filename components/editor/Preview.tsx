@@ -1,5 +1,7 @@
 import { Code } from "bright";
+import Image from "next/image";
 import { MDXRemote } from "next-mdx-remote/rsc";
+import type { ComponentPropsWithoutRef } from "react";
 
 Code.theme = {
   light: "github-light",
@@ -7,30 +9,143 @@ Code.theme = {
   lightSelector: "html.light",
 };
 
-const Preview = ({ content = "" }: { content: string }) => {
-  // 把字符串里所有反斜杠删除
-  // &#x20; 表示一个空格字符。
-  const formattedContent = content.replace(/\\/g, "").replace(/&#x20;/g, "");
+const safeImageHosts = new Set([
+  "pixnio.com",
+  "lh3.googleusercontent.com",
+  "avatars.githubusercontent.com",
+  "flagsapi.com",
+]);
+
+const getSafeLink = (href?: string) => {
+  const value = href?.trim();
+
+  if (!value || value.includes("\\")) return null;
+  if (value.startsWith("#")) return value;
+  if (value.startsWith("/") && !value.startsWith("//")) return value;
+
+  try {
+    const url = new URL(value);
+    return ["http:", "https:", "mailto:"].includes(url.protocol)
+      ? value
+      : null;
+  } catch {
+    return null;
+  }
+};
+
+const getSafeImageSource = (src?: string | Blob) => {
+  if (typeof src !== "string") return null;
+
+  const value = src?.trim();
+
+  if (!value || value.includes("\\")) return null;
+  if (value.startsWith("/") && !value.startsWith("//")) return value;
+
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:" && safeImageHosts.has(url.hostname)
+      ? value
+      : null;
+  } catch {
+    return null;
+  }
+};
+
+const SafeLink = ({
+  href,
+  children,
+  title,
+}: ComponentPropsWithoutRef<"a">) => {
+  const safeHref = getSafeLink(href);
+
+  if (!safeHref) return <span>{children}</span>;
+
+  const opensNewTab = safeHref.startsWith("http");
 
   return (
-    <section className="markdown break-words">
-      {/* source 是要渲染的 MDX/Markdown 字符串。 */}
-      {/* components 是用来自定义 MDX 里某些 HTML 标签怎么渲染的。 */}
-      {/* 这里表示 MDX 里所有 <pre> 标签，不要用默认的 <pre> 渲染，而是用 bright 的 <Code> 组件来渲染。 */}
-      <MDXRemote
-        source={formattedContent}
-        components={{
-          pre: (props) => (
-            <Code
-              {...props}
-              lineNumbers
-              className="shadow-light-200 dark:shadow-dark-200"
-            />
-          ),
-        }}
-      />
-    </section>
+    <a
+      href={safeHref}
+      title={title}
+      target={opensNewTab ? "_blank" : undefined}
+      rel={opensNewTab ? "noopener noreferrer nofollow" : undefined}
+    >
+      {children}
+    </a>
   );
+};
+
+const SafeImage = ({
+  src,
+  alt,
+  title,
+}: ComponentPropsWithoutRef<"img">) => {
+  const safeSrc = getSafeImageSource(src);
+
+  if (!safeSrc) {
+    return (
+      <span className="text-dark400_light500 text-sm" role="note">
+        Image blocked: untrusted source
+      </span>
+    );
+  }
+
+  return (
+    <Image
+      src={safeSrc}
+      alt={alt || "User-provided image"}
+      title={title}
+      width={960}
+      height={540}
+      sizes="(max-width: 768px) 100vw, 768px"
+      className="h-auto max-w-full rounded-lg object-contain"
+    />
+  );
+};
+
+const SafeCodeBlock = ({ children }: ComponentPropsWithoutRef<"pre">) => (
+  <Code
+    lineNumbers
+    className="shadow-light-200 dark:shadow-dark-200"
+  >
+    {children}
+  </Code>
+);
+
+const Preview = async ({ content = "" }: { content: string }) => {
+  // Preserve Markdown escaping; only normalize the legacy encoded-space token.
+  const formattedContent = content.replace(/&#x20;/g, " ");
+
+  try {
+    const renderedContent = await MDXRemote({
+      source: formattedContent,
+      options: {
+        blockJS: true,
+        blockDangerousJS: true,
+        mdxOptions: {
+          // Parse user input as Markdown, never as executable MDX/JSX.
+          format: "md",
+        },
+      },
+      components: {
+        a: SafeLink,
+        img: SafeImage,
+        pre: SafeCodeBlock,
+      },
+    });
+
+    return (
+      <section className="markdown break-words">{renderedContent}</section>
+    );
+  } catch {
+    return (
+      <section
+        className="markdown text-dark400_light500 break-words rounded-lg border border-dashed p-4"
+        role="status"
+      >
+        This content could not be displayed safely.
+      </section>
+    );
+  }
 };
 
 export default Preview;

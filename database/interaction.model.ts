@@ -39,6 +39,8 @@ const InteractionSchema = new Schema<IInteraction>(
   { timestamps: true },
 );
 
+InteractionSchema.index({ actionType: 1, actionId: 1, action: 1, user: 1 });
+
 const Interaction =
   models.Interaction || model<IInteraction>("Interaction", InteractionSchema);
 

@@ -1,71 +1,60 @@
 "use server";
 
+import { auth } from "@/auth";
 import ROUTES from "@/constants/routes";
 import Answer from "@/database/answer.model";
 import Question from "@/database/question.model";
 import Vote from "@/database/vote.model";
+import { syncVoteInteraction } from "@/lib/dal/interaction";
 import mongoose, { ClientSession } from "mongoose";
 import { revalidatePath } from "next/cache";
-import { after } from "next/server";
 import action from "../handlers/action";
 import handleError from "../handlers/error";
-import {
-  CreateVoteSchema,
-  hasVotedSchema,
-  UpdateVoteCountSchema,
-} from "../validations";
-import { createInteraction } from "./interaction.action";
+import { ForbiddenError, UnauthorizedError } from "../http-errors";
+import { hasVotedSchema, SetVoteSchema } from "../validations";
 
-// 更新投票计数
-export const updateVoteCount = async (
-  params: UpdateVoteCountParams,
-  // 这个 ClientSession 类型是 mongoose 用于管理事务的对象，可以在整个事务过程中传递，以确保所有相关的数据库操作都在同一个事务上下文中执行
-  session?: ClientSession,
-): Promise<ActionResponse> => {
-  const validationResult = await action({
-    params,
-    schema: UpdateVoteCountSchema,
-  });
+interface VoteMutationState extends HasVotedResponse {
+  upvotes: number;
+  downvotes: number;
+}
 
-  if (validationResult instanceof Error) {
-    return handleError(validationResult) as ErrorResponse;
-  }
+interface UpdateVoteCountInput {
+  targetId: string;
+  targetType: "question" | "answer";
+  voteType: "upvote" | "downvote";
+  change: 1 | -1;
+}
 
-  const { targetId, targetType, voteType, change } = validationResult.params;
+// Keep raw counter updates private. Exported functions in a `use server` file
+// are remotely callable, and callers must never be able to mutate a count
+// without creating or updating the matching Vote row.
+const updateVoteCount = async (
+  params: UpdateVoteCountInput,
+  session: ClientSession,
+): Promise<void> => {
+  const { targetId, targetType, voteType, change } = params;
   const Model = targetType === "question" ? Question : Answer;
-  // 根据投票类型确定要更新的字段
   const voteField = voteType === "upvote" ? "upvotes" : "downvotes";
 
-  try {
-    // 更新数据库的 Question 或 Answer 表中的的投票计数
-    const result = await Model.findByIdAndUpdate(
-      targetId,
-      {
-        $inc: { [voteField]: change },
-      },
-      { new: true, session },
-    );
+  const result = await Model.findByIdAndUpdate(
+    targetId,
+    { $inc: { [voteField]: change } },
+    { new: true, session },
+  );
 
-    if (!result) {
-      return handleError(
-        new Error("Failed to update vote count"),
-      ) as ErrorResponse;
-    }
-
-    return { success: true };
-  } catch (error) {
-    session?.abortTransaction(); // 如果发生错误，回滚事务
-    return handleError(error) as ErrorResponse;
+  // Throwing is intentional: the outer transaction is the only place that
+  // catches failures, so the Vote row and denormalized counters cannot diverge.
+  if (!result || result[voteField] < 0) {
+    throw new Error("Failed to update vote count");
   }
 };
 
-export const createVote = async (
-  params: CreateVoteParmas,
-): Promise<ActionResponse> => {
-  // 只有已经登录的用户才能进行投票
+export const setVote = async (
+  params: SetVoteParams,
+): Promise<ActionResponse<VoteMutationState>> => {
   const validationResult = await action({
     params,
-    schema: CreateVoteSchema,
+    schema: SetVoteSchema,
     authorize: true,
   });
 
@@ -76,121 +65,153 @@ export const createVote = async (
   const { targetId, targetType, voteType } = validationResult.params;
   const userId = validationResult.session?.user?.id;
 
-  // 开启一个 MongoDB 会话 session
+  if (!userId) {
+    return handleError(new UnauthorizedError()) as ErrorResponse;
+  }
+
   const session = await mongoose.startSession();
-  // 开启事务
-  session.startTransaction();
+  let questionId: string | null = null;
+  let mutationState: VoteMutationState | null = null;
+
   try {
-    // 首先我们需要找到用户投票的目标内容（问题或答案），以便后续记录交互日志时知道这个内容的作者是谁。
-    const Model = targetType === "question" ? Question : Answer;
-    const contentDoc = await Model.findById(targetId).session(session);
-    if (!contentDoc) throw new Error("Content not found");
+    // withTransaction retries transient write conflicts, which are expected
+    // when many users vote on the same denormalized counter document.
+    await session.withTransaction(async () => {
+      const Model = targetType === "question" ? Question : Answer;
+      const contentDoc = await Model.findById(targetId).session(session);
+      if (!contentDoc) throw new Error("Content not found");
 
-    const contentAuthorId = contentDoc.author.toString();
+      const contentAuthorId = contentDoc.author.toString();
+      if (contentAuthorId === userId) {
+        throw new ForbiddenError("You cannot vote on your own content");
+      }
 
-    // 首先检查用户是否已经对这个目标（问题或答案）投过票
-    const existingVote = await Vote.findOne({
-      author: userId,
-      id: targetId,
-      type: targetType,
-    }).session(session);
+      questionId =
+        targetType === "question"
+          ? targetId
+          : (
+              contentDoc as typeof contentDoc & {
+                question: mongoose.Types.ObjectId;
+              }
+            ).question.toString();
 
-    // 如果 Vote 表中有记录，说明用户之前已经投过票，我们需要根据情况更新或删除这条记录
-    if (existingVote) {
-      // 如果用户已经投过相同类型的票，再次投相同类型的票表示用户想要取消投票，我们需要删除这条投票记录
-      if (existingVote.voteType === voteType) {
-        await Vote.deleteOne({ _id: existingVote._id }).session(session);
-        // 如果是取消投票，我们还需要将Question或Answer表中对应的计数减少
-        await updateVoteCount(
+      const existingVote = await Vote.findOne({
+        author: userId,
+        id: targetId,
+        type: targetType,
+      }).session(session);
+      const previousVoteType = existingVote?.voteType ?? null;
+      const nextVoteType = voteType;
+
+      // The browser sends the desired final state. Retrying the same request is
+      // therefore a no-op instead of accidentally toggling the vote back.
+      if (previousVoteType !== nextVoteType) {
+        if (existingVote && nextVoteType === null) {
+          await Vote.deleteOne({ _id: existingVote._id }).session(session);
+          await updateVoteCount(
+            {
+              targetId,
+              targetType,
+              voteType: existingVote.voteType,
+              change: -1,
+            },
+            session,
+          );
+        } else if (existingVote && nextVoteType) {
+          await Vote.updateOne(
+            { _id: existingVote._id },
+            { $set: { voteType: nextVoteType } },
+            { session },
+          );
+          await updateVoteCount(
+            {
+              targetId,
+              targetType,
+              voteType: existingVote.voteType,
+              change: -1,
+            },
+            session,
+          );
+          await updateVoteCount(
+            {
+              targetId,
+              targetType,
+              voteType: nextVoteType,
+              change: 1,
+            },
+            session,
+          );
+        } else if (nextVoteType) {
+          await Vote.create(
+            [
+              {
+                author: userId,
+                id: targetId,
+                type: targetType,
+                voteType: nextVoteType,
+              },
+            ],
+            { session },
+          );
+          await updateVoteCount(
+            {
+              targetId,
+              targetType,
+              voteType: nextVoteType,
+              change: 1,
+            },
+            session,
+          );
+        }
+
+        await syncVoteInteraction(
           {
             targetId,
             targetType,
-            voteType,
-            change: -1,
-          },
-          session,
-        );
-      } else {
-        // 如果用户已经投过不同类型的票，则更新这条投票记录为新的投票类型
-        await Vote.findByIdAndUpdate(
-          existingVote._id,
-          {
-            voteType,
-          },
-          { new: true, session },
-        );
-        // 同时需要将之前的投票类型的计数减少，并将新的投票类型的计数增加
-        await updateVoteCount(
-          {
-            targetId,
-            targetType,
-            voteType: existingVote.voteType,
-            change: -1, // 减少之前投票类型的计数
-          },
-          session,
-        );
-
-        await updateVoteCount(
-          {
-            targetId,
-            targetType,
-            voteType,
-            change: 1, // 增加新投票类型的计数
+            performerId: userId,
+            authorId: contentAuthorId,
+            previousVoteType,
+            nextVoteType,
           },
           session,
         );
       }
-    } else {
-      // 如果用户之前没有投过票，则在 Vote 表中创建一条新的投票记录
-      await Vote.create(
-        [{ author: userId, id: targetId, type: targetType, voteType }],
-        {
-          session,
-        },
-      );
-      // 同时需要将 Question 或 Answer 表中对应的计数增加
-      await updateVoteCount(
-        {
-          targetId,
-          targetType,
-          voteType,
-          change: 1,
-        },
-        session,
-      );
-    }
 
-    // 创建或更新投票记录后，我们还想记录这个操作，以便后续在用户的个人资料页展示用户的活动记录。
-    after(async () => {
-      await createInteraction({
-        action: voteType,
-        actionId: targetId,
-        actionTarget: targetType,
-        authorId: contentAuthorId,
-      });
+      const updatedContent = await Model.findById(targetId)
+        .select("upvotes downvotes")
+        .session(session);
+      if (!updatedContent) throw new Error("Content not found after voting");
+
+      mutationState = {
+        hasUpvoted: nextVoteType === "upvote",
+        hasDownvoted: nextVoteType === "downvote",
+        upvotes: updatedContent.upvotes,
+        downvotes: updatedContent.downvotes,
+      };
     });
 
-    //  提交事务，确保所有的数据库操作都成功执行，如果有任何一个操作失败，整个事务都会回滚
-    await session.commitTransaction();
-    // 重新验证相关页面的缓存，以确保用户在投票后看到的是最新的投票计数
-    revalidatePath(ROUTES.QUESTION(targetId));
-    return { success: true };
+    if (!questionId || !mutationState) {
+      throw new Error("Vote transaction did not return a result");
+    }
+
+    revalidatePath(ROUTES.QUESTION(questionId));
+    return {
+      success: true,
+      data: mutationState,
+    };
   } catch (error) {
-    session.abortTransaction(); // 如果发生错误，回滚事务
     return handleError(error) as ErrorResponse;
   } finally {
     await session.endSession();
   }
 };
 
-// 检查用户是否已经对某个问题或答案投过票
 export const hasVoted = async (
   params: HasVotedParams,
 ): Promise<ActionResponse<HasVotedResponse>> => {
   const validationResult = await action({
     params,
     schema: hasVotedSchema,
-    authorize: true,
   });
 
   if (validationResult instanceof Error) {
@@ -198,29 +219,28 @@ export const hasVoted = async (
   }
 
   const { targetId, targetType } = validationResult.params;
-  const userId = validationResult.session?.user?.id;
+  const session = await auth();
+  const userId = session?.user?.id;
+
+  if (!userId) {
+    return {
+      success: true,
+      data: { hasUpvoted: false, hasDownvoted: false },
+    };
+  }
 
   try {
-    // 检查用户是否已经对这个目标（问题或答案）投过票
     const vote = await Vote.findOne({
       author: userId,
       id: targetId,
       type: targetType,
     });
 
-    if (!vote) {
-      // 如果没有找到投票记录，说明用户没有投过票，返回默认的响应
-      return {
-        success: false,
-        data: { hasUpvoted: false, hasDownvoted: false },
-      };
-    }
-
     return {
       success: true,
       data: {
-        hasUpvoted: vote.voteType === "upvote",
-        hasDownvoted: vote.voteType === "downvote",
+        hasUpvoted: vote?.voteType === "upvote",
+        hasDownvoted: vote?.voteType === "downvote",
       },
     };
   } catch (error) {

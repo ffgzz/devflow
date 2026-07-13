@@ -8,6 +8,7 @@ interface UrlQueryParams {
   params: string; // 当前 URL 的查询参数字符串，例如 "query=react&page=2"
   key: string;
   value: string | null;
+  keysToRemove?: string[];
 }
 
 interface RemoveUrlQueryParams {
@@ -17,9 +18,17 @@ interface RemoveUrlQueryParams {
 
 // 之所以需要 params，是因为我们需要当前的查询参数来构建新的 URL，保持其他参数不变，只更新我们关心的那个参数。
 // 定义：该函数用于构建一个新的 URL 查询字符串，基于当前的查询参数，并更新或添加一个特定的查询参数。
-export const formUrlQuery = ({ params, key, value }: UrlQueryParams) => {
+export const formUrlQuery = ({
+  params,
+  key,
+  value,
+  keysToRemove = [],
+}: UrlQueryParams) => {
   // 解析当前 URL 的查询参数为一个对象
   const currentUrl = qs.parse(params);
+  keysToRemove.forEach((keyToRemove) => {
+    delete currentUrl[keyToRemove];
+  });
   // 更新或添加新的查询参数
   currentUrl[key] = value;
   // 把路径和查询参数对象重新拼成一个完整 URL

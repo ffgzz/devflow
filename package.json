@@ -4,9 +4,15 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "next build --webpack",
+    "build:turbopack": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "typecheck": "tsc --noEmit",
+    "check": "pnpm lint && pnpm typecheck",
+    "health": "node scripts/healthcheck.mjs",
+    "seed": "node scripts/seed.mjs",
+    "migrate:week2": "node scripts/migrate-week2.mjs"
   },
   "dependencies": {
     "@ai-sdk/openai": "^3.0.66",

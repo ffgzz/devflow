@@ -6,9 +6,10 @@ import Account from "@/database/account.model";
 import User from "@/database/user.model";
 import bcrypt from "bcryptjs";
 import mongoose from "mongoose";
+import { AuthError } from "next-auth";
 import action from "../handlers/action";
 import handleError from "../handlers/error";
-import { NotFoundError } from "../http-errors";
+import { RequestError, UnauthorizedError } from "../http-errors";
 import { SignInSchema, SignUpSchema } from "../validations";
 
 // 这个函数是一个异步函数，用于处理用户注册的逻辑。它接受一个参数 params，这个参数包含了用户注册所需的信息，比如用户名、电子邮件、密码等。
@@ -25,22 +26,28 @@ export async function signUpWithCredentials(
     return handleError(validationResult) as ErrorResponse;
   }
 
-  const { name, username, email, password } = validationResult.params;
+  const {
+    name,
+    username,
+    email: submittedEmail,
+    password,
+  } = validationResult.params;
+  const email = submittedEmail.trim().toLowerCase();
   // 启用事务
   const session = await mongoose.startSession();
   session.startTransaction();
 
   try {
     // 查找是否存在具有相同电子邮件的用户，如果存在，我们就不允许注册，并返回一个错误响应。
-    const exitsingUser = await User.findOne({ email }).session(session);
+    const exitsingUser = await User.findOne({ email })
+      .collation({ locale: "en", strength: 2 })
+      .session(session);
     // 如果找到了一个已经存在的用户，我们就抛出一个错误，提示用户已经存在了。
-    if (exitsingUser) {
-      throw new Error("User already exists");
-    }
+    if (exitsingUser) throw new RequestError(409, "Account already exists.");
     // 接下来，我们还需要检查一下用户名是否已经被占用了。如果找到了一个已经存在的用户名，我们同样会抛出一个错误，提示用户名已经存在了。
     const existingUsername = await User.findOne({ username }).session(session);
     if (existingUsername) {
-      throw new Error("Username already exists");
+      throw new RequestError(409, "Account already exists.");
     }
     // 如果电子邮件和用户名都没有被占用，我们就可以继续进行用户注册了。
     // 首先，我们需要对用户的密码进行哈希处理，以确保密码的安全性。
@@ -71,6 +78,16 @@ export async function signUpWithCredentials(
   } catch (error) {
     // 如果在事务过程中发生任何错误，我们会捕获这个错误并调用 session.abortTransaction() 来回滚事务，确保数据库的状态保持一致。
     await session.abortTransaction();
+    if (
+      error instanceof Error &&
+      "code" in error &&
+      (error as Error & { code?: number }).code === 11000
+    ) {
+      return handleError(
+        new RequestError(409, "Account already exists."),
+      ) as ErrorResponse;
+    }
+
     return handleError(error) as ErrorResponse;
   } finally {
     // 无论事务成功还是失败，我们都需要调用 session.endSession() 来结束这个数据库会话，释放相关的资源。
@@ -96,34 +113,33 @@ export async function signInWithCredentials(
   const { email, password } = validationResult.params;
 
   try {
-    const exitsingUser = await User.findOne({ email });
-    // 如果没有找到用户，说明用户不存在，我们就抛出一个 NotFoundError 错误，提示用户没有找到。
-    if (!exitsingUser) {
-      throw new NotFoundError("User");
-    }
-
-    const exitsingAccount = await Account.findOne({
-      provider: "credentials",
-      providerAccountId: email,
-    });
-    // 如果没有找到对应的账户，说明登录信息不正确，我们就抛出一个 NotFoundError 错误，提示用户没有找到。
-    if (!exitsingAccount) {
-      throw new NotFoundError("Account");
-    }
-
-    // 接下来，我们需要验证用户输入的密码是否正确。我们使用 bcrypt 库提供的 compare 函数来比较用户输入的密码和数据库中存储的哈希密码。
-    const isPasswordValid = await bcrypt.compare(
+    const redirectUrl = await signIn("credentials", {
+      email: email.trim().toLowerCase(),
       password,
-      exitsingAccount.password,
-    );
+      redirect: false,
+    });
 
-    if (!isPasswordValid) {
-      throw new Error("Invalid password");
+    if (typeof redirectUrl === "string") {
+      const errorType = new URL(redirectUrl, "http://localhost").searchParams.get(
+        "error",
+      );
+      if (errorType === "CredentialsSignin") {
+        return handleError(
+          new UnauthorizedError("Invalid email or password."),
+        ) as ErrorResponse;
+      }
+      if (errorType) throw new Error("Unable to sign in.");
     }
 
-    await signIn("credentials", { email, password, redirect: false });
     return { success: true };
   } catch (error) {
+    // Do not reveal whether the email, account, or password was wrong.
+    if (error instanceof AuthError && error.type === "CredentialsSignin") {
+      return handleError(
+        new UnauthorizedError("Invalid email or password."),
+      ) as ErrorResponse;
+    }
+
     return handleError(error) as ErrorResponse;
   }
 }

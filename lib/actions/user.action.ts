@@ -6,7 +6,7 @@ import User from "@/database/user.model";
 import mongoose, { PipelineStage, Types } from "mongoose";
 import action from "../handlers/action";
 import handleError from "../handlers/error";
-import { assignBadges } from "../utils";
+import { assignBadges, escapeRegex } from "../utils";
 import {
   GetUserAnswersSchema,
   GetUserQuestionsSchema,
@@ -14,6 +14,9 @@ import {
   PaginatedSearchParamsSchema,
   UpdateUserSchema,
 } from "../validations";
+
+const PUBLIC_USER_FIELDS =
+  "_id name username bio image location portfolio reputation createdAt";
 
 // 用于 Community 页面获取用户列表
 export const getUsers = async (
@@ -34,13 +37,12 @@ export const getUsers = async (
   const filterQuery: Record<string, unknown> = {};
 
   if (query) {
+    const escapedQuery = escapeRegex(query);
     filterQuery.$or = [
       {
-        name: { $regex: query, $options: "i" },
+        name: { $regex: escapedQuery, $options: "i" },
       },
-      {
-        email: { $regex: query, $options: "i" },
-      },
+      { username: { $regex: escapedQuery, $options: "i" } },
     ];
   }
   let sortCriteria: Record<string, mongoose.SortOrder> = {};
@@ -66,6 +68,8 @@ export const getUsers = async (
   try {
     const totalUsers = await User.countDocuments(filterQuery);
     const users = await User.find(filterQuery)
+      .select(PUBLIC_USER_FIELDS)
+      .lean()
       .skip(skip)
       .limit(limit)
       .sort(sortCriteria);
@@ -99,7 +103,9 @@ export const getUser = async (
   const { userId } = validationResult.params;
 
   try {
-    const user = await User.findById(userId);
+    const user = await User.findById(userId)
+      .select(PUBLIC_USER_FIELDS)
+      .lean();
     if (!user) {
       throw new Error("User not found");
     }
@@ -374,7 +380,9 @@ export const updateUser = async (
   try {
     const updatedUser = await User.findByIdAndUpdate(user?.id, params, {
       new: true,
-    });
+    })
+      .select(PUBLIC_USER_FIELDS)
+      .lean();
 
     return {
       success: true,

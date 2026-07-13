@@ -9,9 +9,15 @@ interface Props {
   page?: number | string;
   isNext?: boolean;
   containerClasses?: string;
+  resetKeys?: string[];
 }
 
-const Pagination = ({ page = 1, isNext, containerClasses }: Props) => {
+const Pagination = ({
+  page = 1,
+  isNext,
+  containerClasses,
+  resetKeys = [],
+}: Props) => {
   const searchParams = useSearchParams();
   const router = useRouter();
 
@@ -26,6 +32,7 @@ const Pagination = ({ page = 1, isNext, containerClasses }: Props) => {
       params: searchParams.toString(),
       key: "page",
       value: nextPageNumber.toString(),
+      keysToRemove: resetKeys,
     });
     router.push(newUrl, { scroll: false });
   };

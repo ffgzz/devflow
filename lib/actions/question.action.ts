@@ -1,6 +1,7 @@
 "use server";
 
 import { auth } from "@/auth";
+import ROUTES from "@/constants/routes";
 import Answer from "@/database/answer.model";
 import Collection from "@/database/collection.model";
 import Interaction from "@/database/interaction.model";
@@ -8,12 +9,22 @@ import Question, { IQuestionDoc } from "@/database/question.model";
 import TagQuestion from "@/database/tag-question.model";
 import Tag, { ITagDoc } from "@/database/tag.model";
 import Vote from "@/database/vote.model";
+import {
+  recordContentInteraction,
+  rollbackVoteInteractionsForTargets,
+} from "@/lib/dal/interaction";
+import { deleteNotificationsForQuestion } from "@/lib/dal/notification";
 import mongoose, { Types } from "mongoose";
 import { revalidatePath } from "next/cache";
-import { after } from "next/server";
 import action from "../handlers/action";
 import handleError from "../handlers/error";
+import {
+  ForbiddenError,
+  NotFoundError,
+  UnauthorizedError,
+} from "../http-errors";
 import { dbConnect } from "../mongoose";
+import { escapeRegex } from "../utils";
 import {
   AskQuestionSchema,
   DeleteQuestionSchema,
@@ -22,7 +33,6 @@ import {
   IncrementViewsSchema,
   PaginatedSearchParamsSchema,
 } from "../validations";
-import { createInteraction } from "./interaction.action";
 
 export async function createQuestion(
   params: CreateQuestionParams,
@@ -41,14 +51,18 @@ export async function createQuestion(
   const { title, content, tags } = validationResult.params;
   const userId = validationResult.session?.user?.id;
 
+  if (!userId) {
+    return handleError(new UnauthorizedError()) as ErrorResponse;
+  }
+
   // 开启事务
   // startSession 是 mongoose 提供的一个方法，用于创建一个新的会话（session）。
   // 会话是 MongoDB 中的一种机制，用于在多个操作之间保持一致性和原子性。通过使用会话，可以确保在执行一系列相关操作时，如果其中任何一个操作失败，整个事务都会回滚，从而保持数据的完整性。
   const session = await mongoose.startSession();
-  // startTransaction 是会话对象提供的一个方法，用于开始一个新的事务。当调用 startTransaction 方法时，MongoDB 会将后续的操作视为一个事务的一部分，直到调用 commitTransaction 或 abortTransaction 来结束事务。
-  session.startTransaction();
+  let createdQuestion: IQuestionDoc | null = null;
 
   try {
+    await session.withTransaction(async () => {
     // 创建问题
     const [question] = await Question.create(
       [{ title, content, author: userId }],
@@ -71,7 +85,7 @@ export async function createQuestion(
       // findOneAndUpdate(查询条件, 更新内容, 配置选项)
       const existigTag = await Tag.findOneAndUpdate(
         {
-          name: { $regex: new RegExp(`^${tag}$`, "i") },
+          name: { $regex: new RegExp(`^${escapeRegex(tag)}$`, "i") },
         },
         // $setOnInsert 是 MongoDB 的一个更新操作符，用于在执行 upsert 操作时，如果没有找到符合条件的文档，就创建一个新的文档，并将指定的字段设置为给定的值
         // $inc 是 MongoDB 的一个更新操作符，用于对指定字段的值进行递增或递减操作。在这里，$inc: { questions: 1 } 表示将 questions 字段的值增加 1。
@@ -98,25 +112,31 @@ export async function createQuestion(
       { session },
     );
 
-    // 创建问题之后，我们还想记录这个操作，以便后续在用户的个人资料页展示用户的活动记录。
-    after(async () => {
-      await createInteraction({
+    await recordContentInteraction(
+      {
         action: "post",
-        actionId: question._id.toString(),
-        actionTarget: "question",
-        authorId: userId as string,
-      });
+        targetId: question._id.toString(),
+        targetType: "question",
+        userId,
+      },
+      session,
+    );
+
+      createdQuestion = question;
     });
 
-    await session.commitTransaction();
+    if (!createdQuestion) {
+      throw new Error("Question transaction did not return a result");
+    }
+
+    revalidatePath(ROUTES.HOME);
 
     return {
       success: true,
       // 是为了把 Mongoose 文档变成 Next.js 可以安全返回/传递的普通 JSON 对象。
-      data: JSON.parse(JSON.stringify(question)),
+      data: JSON.parse(JSON.stringify(createdQuestion)),
     };
   } catch (error) {
-    await session.abortTransaction();
     return handleError(error) as ErrorResponse;
   } finally {
     // 结束这次 MongoDB session，释放资源
@@ -141,17 +161,24 @@ export async function editQuestion(
   const { title, content, tags, questionId } = validationResult.params!;
   const userId = validationResult.session?.user?.id;
 
+  if (!userId) {
+    return handleError(new UnauthorizedError()) as ErrorResponse;
+  }
+
   const session = await mongoose.startSession();
-  session.startTransaction();
+  let updatedQuestion: IQuestionDoc | null = null;
 
   try {
+    await session.withTransaction(async () => {
     // 首先根据 questionId 找到这个问题，并且用 populate("tags") 把它关联的标签信息也查询出来。这样我们就可以拿到这个问题当前有哪些标签了。
     // populate 是 Mongoose 提供的一个方法，用于在查询文档时自动替换指定字段的 ObjectId 为对应的文档内容。在这里，populate("tags") 表示在查询 Question 文档时，自动将 tags 字段中的 ObjectId 替换为对应的 Tag 文档内容。这样我们就可以直接访问 question.tags 来获取这个问题关联的标签信息了，而不需要再额外查询一次 Tag 集合。
-    const question = await Question.findById(questionId).populate("tags");
-    if (!question) throw new Error("Question not found");
+    const question = await Question.findById(questionId)
+      .populate("tags")
+      .session(session);
+    if (!question) throw new NotFoundError("Question");
     // 检查一下这个问题的 author 字段（也就是提问者的 ID）和当前用户的 ID 是否一样，如果不一样就说明这个用户没有权限编辑这个问题，我们就抛出一个错误。这里我们把 question.author 转成字符串来比较，因为它是一个 ObjectId 对象，而 userId 是一个字符串。
     if (question.author.toString() !== userId) {
-      throw new Error("You are not authorized to edit this question");
+      throw new ForbiddenError("You're not allowed to edit this question");
     }
     // 如果用户修改了问题的标题或者内容，我们就更新它们。这里我们先检查一下新的标题和内容是否和原来的不一样，如果不一样才去更新，这样可以避免不必要的数据库写操作。
     if (question.title !== title || question.content !== content) {
@@ -179,7 +206,12 @@ export async function editQuestion(
       for (const tag of tagsToAdd) {
         // 对于每个需要添加的标签，我们先检查一下数据库里是否已经有这个标签了（不区分大小写）。如果有了，我们就把它的 questions 数量 +1；如果没有，我们就创建一个新的标签，并把 questions 设为 1。无论哪种情况，我们都把这个标签和问题的关联关系记录下来，等会儿一起插入到 TagQuestion 集合里。
         const newTag = await Tag.findOneAndUpdate(
-          { name: { $regex: `^${tag}$`, $options: "i" } },
+          {
+            name: {
+              $regex: `^${escapeRegex(tag)}$`,
+              $options: "i",
+            },
+          },
           { $setOnInsert: { name: tag }, $inc: { questions: 1 } },
           { upsert: true, new: true, session },
         );
@@ -221,12 +253,21 @@ export async function editQuestion(
     // 把更新后的问题保存到数据库里。由于我们之前对 question 对象做了一些修改（比如更新了标题、内容和标签），所以我们需要调用 question.save() 方法来把这些修改保存到数据库里。这里我们也传入了 session 参数，确保这个保存操作也是在同一个事务里进行的。
     await question.save({ session });
 
-    // 最后把更新后的问题保存到数据库里
-    await session.commitTransaction();
+      updatedQuestion = question;
+    });
 
-    return { success: true, data: JSON.parse(JSON.stringify(question)) };
+    if (!updatedQuestion) {
+      throw new Error("Question transaction did not return a result");
+    }
+
+    revalidatePath(ROUTES.QUESTION(questionId));
+    revalidatePath(ROUTES.HOME);
+
+    return {
+      success: true,
+      data: JSON.parse(JSON.stringify(updatedQuestion)),
+    };
   } catch (error) {
-    await session.abortTransaction();
     return handleError(error) as ErrorResponse;
   } finally {
     await session.endSession();
@@ -240,7 +281,6 @@ export async function getQuestion(
   const validationResult = await action({
     params,
     schema: GetQuestionSchema,
-    authorize: true,
   });
 
   if (validationResult instanceof Error) {
@@ -269,12 +309,14 @@ export async function getQuestion(
 // 它首先根据用户的历史交互记录（比如浏览、点赞、收藏、提问等）来找出用户感兴趣的标签，
 // 然后基于这些标签来推荐相关的问题给用户。
 // 它还支持根据用户输入的搜索关键词来进一步过滤推荐结果。
-export async function getRecommendedQuestions({
+async function getRecommendedQuestions({
   userId,
   query,
   skip,
   limit,
 }: RecommendationParams) {
+  const safeSkip = Math.max(0, Math.trunc(skip));
+  const safeLimit = Math.min(Math.max(1, Math.trunc(limit)), 100);
   // 首先获取用户的历史交互记录，找出用户最近与哪些问题有过交互（比如浏览、点赞、收藏、提问等）。
   // 我们只关注那些与问题相关的交互记录，所以在查询 Interaction 集合时，我们加了一个条件 actionType: "question"，
   // 同时我们也只关注那些 action 是 "view"、"upvote"、"bookmark" 或者 "post" 的交互记录。
@@ -314,9 +356,10 @@ export async function getRecommendedQuestions({
   };
 
   if (query) {
+    const escapedQuery = escapeRegex(query);
     recommendedQuery.$or = [
-      { title: { $regex: query, $options: "i" } },
-      { content: { $regex: query, $options: "i" } },
+      { title: { $regex: escapedQuery, $options: "i" } },
+      { content: { $regex: escapedQuery, $options: "i" } },
     ];
   }
 
@@ -327,13 +370,13 @@ export async function getRecommendedQuestions({
     .populate("author", "name image")
     // 按照点赞数和浏览数来排序，点赞数多的排在前面，如果点赞数一样就按照浏览数来排序，浏览数多的排在前面。
     .sort({ upvotes: -1, views: -1 })
-    .skip(skip)
-    .limit(limit)
+    .skip(safeSkip)
+    .limit(safeLimit)
     .lean();
 
   return {
     questions: JSON.parse(JSON.stringify(questions)),
-    isNext: total > skip + questions.length,
+    isNext: total > safeSkip + questions.length,
   };
 }
 
@@ -384,9 +427,10 @@ export async function getQuestions(
     // 如果 query 存在，我们就构造一个 filterQuery 对象，这个对象会被用来作为 MongoDB 查询的过滤条件。
     // 具体来说，我们使用 $or 操作符来指定多个查询条件，表示只要满足其中一个条件就可以匹配到文档。在这里，我们有两个条件：一个是 title 字段包含 query 字符串（不区分大小写），另一个是 content 字段包含 query 字符串（不区分大小写）。我们使用 $regex 操作符来实现模糊匹配，$options: "i" 表示不区分大小写。
     if (query) {
+      const escapedQuery = escapeRegex(query);
       filterQuery.$or = [
-        { title: { $regex: query, $options: "i" } },
-        { content: { $regex: query, $options: "i" } },
+        { title: { $regex: escapedQuery, $options: "i" } },
+        { content: { $regex: escapedQuery, $options: "i" } },
       ];
     }
     // 这个 sortCriteria 用于排序
@@ -498,72 +542,109 @@ export async function deleteQuestion(
 
   const { questionId } = validationResult.params;
   const { user } = validationResult.session!;
+  const userId = user?.id;
+
+  if (!userId) {
+    return handleError(new UnauthorizedError()) as ErrorResponse;
+  }
+
   const session = await mongoose.startSession();
 
   try {
-    // 开启事务，因为删除一个问题需要删除多个相关的文档（比如这个问题的收藏记录、标签关联记录、投票记录、以及这个问题下的所有回答和它们的投票记录），我们需要确保这些操作要么全部成功，要么全部失败，以保持数据的一致性。
-    session.startTransaction();
+    // 删除一个问题会同时影响回答、投票、声望、收藏、标签和通知。
+    // withTransaction 在并发写冲突时会自动重试，并保证这些变化一起成功或一起回滚。
+    await session.withTransaction(async () => {
+      const question = await Question.findById(questionId).session(session);
+      if (!question) throw new NotFoundError("Question");
 
-    const question = await Question.findById(questionId).session(session);
-    if (!question) throw new Error("Question not found");
-    // 必须是自己的才能删，不能删除别人的问题
-    if (question.author.toString() !== user?.id) {
-      throw new Error("You are not authorized to delete this question");
-    }
+      if (question.author.toString() !== userId) {
+        throw new ForbiddenError(
+          "You're not allowed to delete this question",
+        );
+      }
 
-    // 删除这个问题相关的收藏记录和标签关联记录
-    await Collection.deleteMany({ question: questionId }).session(session);
-    await TagQuestion.deleteMany({ question: questionId }).session(session);
-    // 如果这个问题有关联的标签，我们还需要把这些标签的 questions 数量 -1，以保持数据的一致性。
-    if (question.tags.length > 0) {
-      await Tag.updateMany(
-        { _id: { $in: question.tags } },
-        { $inc: { questions: -1 } },
-        { session },
+      const answers = await Answer.find({ question: questionId }).session(
+        session,
       );
-    }
-    // 删除这个问题的投票记录
-    await Vote.deleteMany({
-      id: questionId,
-      type: "question",
-    }).session(session);
+      const voteTargets = [
+        {
+          targetId: questionId,
+          targetType: "question" as const,
+          authorId: question.author.toString(),
+        },
+        ...answers.map((answer) => ({
+          targetId: answer._id.toString(),
+          targetType: "answer" as const,
+          authorId: answer.author.toString(),
+        })),
+      ];
 
-    const answers = await Answer.find({ question: questionId }).session(
-      session,
-    );
-    // 删除这个问题下的所有回答以及它们的投票记录。我们先找到这个问题下的所有回答，如果有回答的话，我们就把这些回答的 ID 收集起来，
-    // 然后在 Vote 集合里删除那些 id 在这个回答 ID 列表里的投票记录，最后再删除这些回答。
-    if (answers.length > 0) {
-      await Answer.deleteMany({ question: questionId }).session(session);
-      // 删除这些回答的投票记录。我们使用 $in 操作符来指定那些 id 在 answers.map((answer) => answer._id) 这个数组里的投票记录都要被删除掉。同时我们也要指定 type: "answer"，确保只删除回答的投票记录，而不误删了其他类型的投票记录。
+      // Vote 必须在回滚声望之后删除，因为回滚需要读取每一条真实投票。
+      await rollbackVoteInteractionsForTargets(voteTargets, session);
+
+      await Collection.deleteMany({ question: questionId }).session(session);
+      await TagQuestion.deleteMany({ question: questionId }).session(session);
+
+      if (question.tags.length > 0) {
+        await Tag.updateMany(
+          { _id: { $in: question.tags } },
+          { $inc: { questions: -1 } },
+          { session },
+        );
+      }
+
       await Vote.deleteMany({
-        id: { $in: answers.map((answer) => answer._id) },
-        type: "answer",
+        $or: [
+          { id: questionId, type: "question" },
+          {
+            id: { $in: answers.map((answer) => answer._id) },
+            type: "answer",
+          },
+        ],
       }).session(session);
-    }
-    // 最后删除这个问题
-    await Question.findByIdAndDelete(questionId).session(session);
 
-    // 删除问题之后，我们还想记录这个操作，以便后续在用户的个人资料页展示用户的活动记录。
-    after(async () => {
-      await createInteraction({
-        action: "delete",
-        actionId: questionId,
-        actionTarget: "question",
-        authorId: user?.id as string,
-      });
+      if (answers.length > 0) {
+        await Answer.deleteMany({ question: questionId }).session(session);
+
+        // 子回答也属于当前内容状态；随问题删除时撤销其发布声望。
+        for (const answer of answers) {
+          await recordContentInteraction(
+            {
+              action: "delete",
+              targetId: answer._id.toString(),
+              targetType: "answer",
+              userId: answer.author.toString(),
+            },
+            session,
+          );
+        }
+      }
+
+      await deleteNotificationsForQuestion(questionId, session);
+      const deletion = await Question.deleteOne({ _id: questionId }).session(
+        session,
+      );
+      if (deletion.deletedCount !== 1) {
+        throw new Error("Failed to delete question");
+      }
+
+      await recordContentInteraction(
+        {
+          action: "delete",
+          targetId: questionId,
+          targetType: "question",
+          userId,
+        },
+        session,
+      );
     });
-
-    // 提交事务
-    await session.commitTransaction();
     // revalidatePath 是 Next.js 提供的一个函数，用于在服务器端重新验证指定路径的数据。
     // 当我们在服务器端执行某些操作（比如删除了一个问题）之后，我们可能需要让客户端知道这个操作已经完成了，以便它可以更新页面上的数据。通过调用 revalidatePath(`/profile/${user?.id}`)，
     // 我们告诉 Next.js 重新验证这个用户个人主页的数据，这样当用户刷新个人主页或者访问个人主页时，就会看到最新的数据了。
-    revalidatePath(`/profile/${user?.id}`);
+    revalidatePath(`/profile/${userId}`);
 
     return { success: true };
   } catch (error) {
-    await session.abortTransaction();
     return handleError(error) as ErrorResponse;
   } finally {
     await session.endSession();

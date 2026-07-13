@@ -1,5 +1,26 @@
 import { z } from "zod";
 
+const httpUrlSchema = (message: string) =>
+  z
+    .string()
+    .url({ message })
+    .refine(
+      (value) => {
+        try {
+          const protocol = new URL(value).protocol;
+          return protocol === "http:" || protocol === "https:";
+        } catch {
+          return false;
+        }
+      },
+      { message },
+    );
+
+const mongoIdSchema = (resource: string) =>
+  z
+    .string()
+    .regex(/^[0-9a-f]{24}$/iu, { message: `Invalid ${resource} ID.` });
+
 // 定义 SignIn 和 SignUp 表单的验证规则，使用 Zod 来确保用户输入的数据符合预期的格式和要求。
 export const SignInSchema = z.object({
   email: z
@@ -70,11 +91,11 @@ export const AskQuestionSchema = z.object({
 });
 
 export const EditQuestionSchema = AskQuestionSchema.extend({
-  questionId: z.string().min(1, { message: "Question ID is required." }),
+  questionId: mongoIdSchema("question"),
 });
 
 export const GetQuestionSchema = z.object({
-  questionId: z.string().min(1, { message: "Question ID is required." }),
+  questionId: mongoIdSchema("question"),
 });
 
 // user.model.ts 里的 UserSchema 看做后端验证，IUser 看成是给我们开发者看的验证，
@@ -86,23 +107,19 @@ export const UserSchema = z.object({
     .min(3, { message: "Username must be at least 3 characters long." }),
   email: z.string().email({ message: "Please provide a valid email address." }),
   bio: z.string().optional(),
-  image: z
-    .string()
-    .url({ message: "Please provide a valid URL for the image." })
-    .optional(),
+  image: httpUrlSchema("Please provide a valid HTTP(S) image URL.").optional(),
   location: z.string().optional(),
   // 作品集
-  portfolio: z
-    .string()
-    .url({ message: "Please provide a valid URL for the portfolio." })
-    .optional(),
+  portfolio: httpUrlSchema(
+    "Please provide a valid HTTP(S) portfolio URL.",
+  ).optional(),
   reputation: z.number().optional(),
 });
 
 export const AccountSchema = z.object({
   userId: z.string(),
   name: z.string().min(1, "Name is required"),
-  image: z.string().url("Invalid image URL").optional(),
+  image: httpUrlSchema("Invalid image URL").optional(),
   password: z
     .string()
     .min(6, { message: "Password must be at least 6 characters long." })
@@ -131,10 +148,7 @@ export const SignInWithOAuthSchema = z.object({
     name: z.string().min(1, "Name is required"),
     username: z.string().min(3, "Username must be at least 3 characters long"),
     email: z.string().email("Please provide a valid email address"),
-    image: z
-      .string()
-      .url("Please provide a valid URL for the image")
-      .optional(),
+    image: httpUrlSchema("Please provide a valid HTTP(S) image URL.").optional(),
   }),
 });
 
@@ -149,11 +163,11 @@ export const PaginatedSearchParamsSchema = z.object({
 
 // 这个是用来获取某个标签下的问题的参数验证，确保用户输入的标签 ID 和分页参数符合预期的格式和要求。
 export const GetTagQuestionsSchema = PaginatedSearchParamsSchema.extend({
-  tagId: z.string().min(1, "Tag ID is required"),
+  tagId: mongoIdSchema("tag"),
 });
 
 export const IncrementViewsSchema = z.object({
-  questionId: z.string().min(1, "Question ID is required"),
+  questionId: mongoIdSchema("question"),
 });
 
 // 回答问题的验证规则，AnswerForm组件只接受 这一个参数
@@ -162,11 +176,12 @@ export const AnswerSchema = z.object({
 });
 
 export const AnswerServerSchema = AnswerSchema.extend({
-  questionId: z.string().min(1, "Question ID is required"),
+  questionId: mongoIdSchema("question"),
 });
 
 export const GetAnswersSchema = PaginatedSearchParamsSchema.extend({
-  questionId: z.string().min(1, "Question ID is required"),
+  questionId: mongoIdSchema("question"),
+  highlightedAnswerId: mongoIdSchema("answer").optional(),
 });
 
 export const AIAnswerSchema = z.object({
@@ -174,71 +189,67 @@ export const AIAnswerSchema = z.object({
     .string()
     .min(5, { message: "Question must be at least 5 characters long." })
     .max(130, { message: "Question cannot exceed 130 characters." }),
-  content: z.string().min(100, {
-    message: "Question description must have Minimum of 100 characters.",
-  }),
-  userAnswer: z.string().optional(),
+  content: z
+    .string()
+    .min(100, {
+      message: "Question description must have Minimum of 100 characters.",
+    })
+    .max(20_000, {
+      message: "Question description cannot exceed 20,000 characters.",
+    }),
+  userAnswer: z
+    .string()
+    .max(10_000, { message: "Answer draft cannot exceed 10,000 characters." })
+    .optional(),
 });
 
-export const CreateVoteSchema = z.object({
-  targetId: z.string().min(1, "Target ID is required"),
+const VoteTargetSchema = z.object({
+  targetId: mongoIdSchema("vote target"),
   targetType: z.enum(["question", "answer"], {
     message: "Target type must be either 'question' or 'answer'",
   }),
-  voteType: z.enum(["upvote", "downvote"], {
-    message: "Vote type must be either 'upvote' or 'downvote'",
-  }),
-});
-export const UpdateVoteCountSchema = CreateVoteSchema.extend({
-  change: z.number().int().min(-1).max(1),
 });
 
-export const hasVotedSchema = CreateVoteSchema.pick({
-  targetId: true,
-  targetType: true,
+export const SetVoteSchema = VoteTargetSchema.extend({
+  voteType: z.enum(["upvote", "downvote"], {
+    message: "Vote type must be either 'upvote' or 'downvote'",
+  }).nullable(),
 });
+
+export const hasVotedSchema = VoteTargetSchema;
 // 这个是用来创建和编辑收藏夹的验证规则
 export const CollectionBaseSchema = z.object({
-  questionId: z.string().min(1, "Question ID is required"),
+  questionId: mongoIdSchema("question"),
 });
 
 export const GetUserSchema = z.object({
-  userId: z.string().min(1, "User ID is required"),
+  userId: mongoIdSchema("user"),
 });
 
 export const GetUserQuestionsSchema = PaginatedSearchParamsSchema.extend({
-  userId: z.string().min(1, "User ID is required"),
+  userId: mongoIdSchema("user"),
 });
 
 export const GetUserAnswersSchema = PaginatedSearchParamsSchema.extend({
-  userId: z.string().min(1, "User ID is required"),
+  userId: mongoIdSchema("user"),
 });
 
 export const GetUserTagsSchema = z.object({
-  userId: z.string().min(1, "User ID is required"),
+  userId: mongoIdSchema("user"),
 });
 
 export const DeleteQuestionSchema = z.object({
-  questionId: z.string().min(1, "Question ID is required"),
+  questionId: mongoIdSchema("question"),
 });
 
 export const DeleteAnswerSchema = z.object({
-  answerId: z.string().min(1, "Answer ID is required"),
+  answerId: mongoIdSchema("answer"),
 });
 
-export const CreateInteractionSchema = z.object({
-  action: z.enum([
-    "view",
-    "upvote",
-    "downvote",
-    "bookmark",
-    "post",
-    "edit",
-    "delete",
-  ]),
-  actionTarget: z.enum(["question", "answer"]),
-  actionId: z.string().min(1),
-  authorId: z.string().min(1),
+export const SetAnswerAcceptanceSchema = z.object({
+  questionId: mongoIdSchema("question"),
+  answerId: mongoIdSchema("answer"),
+  accepted: z.boolean(),
 });
 
 export const ProfileSchema = z.object({
@@ -251,10 +262,9 @@ export const ProfileSchema = z.object({
   username: z
     .string()
     .min(3, { message: "username musn't be longer then 100 characters." }),
-  portfolio: z
-    .string()
-    .url({ message: "Please provide valid URL" })
-    .or(z.literal("")),
+  portfolio: httpUrlSchema("Please provide a valid HTTP(S) URL").or(
+    z.literal(""),
+  ),
   location: z.string().min(3, { message: "Please provide proper location" }),
   bio: z.string().min(3, {
     message: "Bio must be at least 3 characters.",
@@ -264,6 +274,9 @@ export const ProfileSchema = z.object({
 export const UpdateUserSchema = ProfileSchema;
 
 export const GlobalSearchSchema = z.object({
-  query: z.string(),
-  type: z.string().nullable().optional(),
+  query: z.string().trim().min(1).max(100),
+  type: z
+    .enum(["question", "answer", "user", "tag"])
+    .nullable()
+    .optional(),
 });

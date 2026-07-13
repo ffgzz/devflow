@@ -9,6 +9,7 @@ export interface IQuestion {
   downvotes: number;
   answers: number; // 回答数量
   author: Schema.Types.ObjectId;
+  acceptedAnswer?: Types.ObjectId | null;
 }
 
 export interface IQuestionDoc extends IQuestion, Document {}
@@ -25,6 +26,12 @@ const QuestionSchema = new Schema<IQuestion>(
     // 这里只记录问题的回答数量，而不直接存储回答的内容。
     answers: { type: Number, default: 0 },
     author: { type: Schema.Types.ObjectId, ref: "User", required: true },
+    // 问题是“哪一个回答被采纳”的唯一事实源，避免在 Question 和 Answer 中重复保存状态。
+    acceptedAnswer: {
+      type: Schema.Types.ObjectId,
+      ref: "Answer",
+      default: null,
+    },
   },
   { timestamps: true },
 );

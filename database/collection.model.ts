@@ -16,6 +16,10 @@ const CollectionSchema = new Schema<ICollection>(
   { timestamps: true },
 );
 
+// Saving is a set operation, so duplicate rows for one user and question are
+// invalid even when requests arrive from multiple tabs at the same time.
+CollectionSchema.index({ author: 1, question: 1 }, { unique: true });
+
 const Collection =
   models.Collection || model<ICollection>("Collection", CollectionSchema);
 

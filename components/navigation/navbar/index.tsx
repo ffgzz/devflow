@@ -1,11 +1,25 @@
 import { auth } from "@/auth";
+import NotificationBell from "@/components/notifications/NotificationBell";
 import GlobalSearch from "@/components/search/GlobalSearch";
 import UserAvatar from "@/components/UserAvatar";
+import { getNotificationSummary } from "@/lib/dal/notification";
 import Image from "next/image";
 import Link from "next/link";
 import { Suspense } from "react";
 import Mobilenavigation from "./Mobilenavigation";
 import Theme from "./Theme";
+
+const NotificationBellSlot = async () => {
+  const { notifications, unreadCount } = await getNotificationSummary(8);
+
+  return (
+    <NotificationBell
+      key={`${unreadCount}:${notifications.map((item) => item._id).join(",")}`}
+      initialNotifications={notifications}
+      initialUnreadCount={unreadCount}
+    />
+  );
+};
 
 const Navbar = async () => {
   const session = await auth();
@@ -33,6 +47,14 @@ const Navbar = async () => {
 
       <div className="flex-between gap-5">
         <Theme />
+
+        {userId && (
+          <Suspense
+            fallback={<div className="size-8" aria-label="Loading notifications" />}
+          >
+            <NotificationBellSlot />
+          </Suspense>
+        )}
 
         {userId && (
           <UserAvatar

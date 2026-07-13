@@ -1,24 +1,64 @@
 "use server";
 
+import { auth } from "@/auth";
 import ROUTES from "@/constants/routes";
 import Collection from "@/database/collection.model";
 import Question from "@/database/question.model";
 import mongoose, { PipelineStage } from "mongoose";
 import { revalidatePath } from "next/cache";
+import { z } from "zod";
 import action from "../handlers/action";
 import handleError from "../handlers/error";
+import { escapeRegex } from "../utils";
 import {
   CollectionBaseSchema,
   PaginatedSearchParamsSchema,
 } from "../validations";
 
-// 收藏和取消收藏问题的函数
-export const toggleSaveQuestion = async (
-  params: CollectionBaseParams,
+interface SetQuestionSavedParams extends CollectionBaseParams {
+  saved: boolean;
+}
+
+const SetQuestionSavedSchema = CollectionBaseSchema.extend({
+  saved: z.boolean(),
+});
+
+const persistQuestionSaved = async ({
+  questionId,
+  userId,
+  saved,
+}: {
+  questionId: string;
+  userId: string;
+  saved: boolean;
+}): Promise<boolean> => {
+  const question = await Question.findById(questionId).select("_id");
+  if (!question) throw new Error("Question not found");
+
+  if (saved) {
+    await Collection.updateOne(
+      { author: userId, question: questionId },
+      { $setOnInsert: { author: userId, question: questionId } },
+      { upsert: true },
+    );
+  } else {
+    // deleteMany also repairs legacy duplicates before the unique index exists.
+    await Collection.deleteMany({ author: userId, question: questionId });
+  }
+
+  revalidatePath(ROUTES.QUESTION(questionId));
+  revalidatePath(ROUTES.COLLECTION);
+  return saved;
+};
+
+// An explicit desired state is idempotent, unlike a toggle that can reverse
+// itself when a request is retried.
+export const setQuestionSaved = async (
+  params: SetQuestionSavedParams,
 ): Promise<ActionResponse<{ saved: boolean }>> => {
   const validationResult = await action({
     params,
-    schema: CollectionBaseSchema,
+    schema: SetQuestionSavedSchema,
     authorize: true,
   });
 
@@ -26,39 +66,20 @@ export const toggleSaveQuestion = async (
     return handleError(validationResult) as ErrorResponse;
   }
 
-  const { questionId } = validationResult.params;
+  const { questionId, saved: desiredSavedState } = validationResult.params;
   const userId = validationResult.session?.user?.id;
 
   try {
-    const question = await Question.findById(questionId);
-    if (!question) throw new Error("Question not found");
+    if (!userId) throw new Error("Unauthorized");
 
-    const collection = await Collection.findOne({
-      author: userId,
-      question: questionId,
+    const saved = await persistQuestionSaved({
+      questionId,
+      userId,
+      saved: desiredSavedState,
     });
-    // 如果收藏夹中已经存在该问题，则意味着用户想要取消收藏，所以我们删除该收藏记录
-    if (collection) {
-      await Collection.findByIdAndDelete(collection._id);
-
-      revalidatePath(ROUTES.QUESTION(questionId));
-
-      return {
-        success: true,
-        data: { saved: false },
-      };
-    }
-
-    await Collection.create({
-      author: userId,
-      question: questionId,
-    });
-
-    revalidatePath(ROUTES.QUESTION(questionId));
-
     return {
       success: true,
-      data: { saved: true },
+      data: { saved },
     };
   } catch (error) {
     return handleError(error) as ErrorResponse;
@@ -72,7 +93,6 @@ export const hasSavedQuestion = async (
   const validationResult = await action({
     params,
     schema: CollectionBaseSchema,
-    authorize: true,
   });
 
   if (validationResult instanceof Error) {
@@ -80,7 +100,12 @@ export const hasSavedQuestion = async (
   }
 
   const { questionId } = validationResult.params;
-  const userId = validationResult.session?.user?.id;
+  const session = await auth();
+  const userId = session?.user?.id;
+
+  if (!userId) {
+    return { success: true, data: { saved: false } };
+  }
 
   try {
     const collection = await Collection.findOne({
@@ -177,12 +202,17 @@ export const getSavedQuestions = async (
     ];
 
     if (query) {
+      const escapedQuery = escapeRegex(query);
       pipeline.push({
         // $match 阶段是用来过滤数据的，这里根据用户输入的搜索关键词 query 来过滤问题，使用 $regex 进行模糊匹配，$options: "i" 表示不区分大小写。
         $match: {
           $or: [
-            { "question.title": { $regex: query, $options: "i" } },
-            { "question.content": { $regex: query, $options: "i" } },
+            {
+              "question.title": { $regex: escapedQuery, $options: "i" },
+            },
+            {
+              "question.content": { $regex: escapedQuery, $options: "i" },
+            },
           ],
         },
       });
@@ -205,7 +235,7 @@ export const getSavedQuestions = async (
     });
     // 所以这里得到的只有 question 字段，里面包含了问题的详细信息（包括作者和标签），而其他字段（如收藏记录的 _id、user 等）都被排除掉了。
     const questions = await Collection.aggregate(pipeline);
-    const isNext = skip + questions.length < totalCount.count;
+    const isNext = skip + questions.length < (totalCount?.count ?? 0);
     return {
       success: true,
       data: {

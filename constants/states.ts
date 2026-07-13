@@ -55,3 +55,8 @@ export const EMPTY_USERS = {
   title: "No Users Found",
   message: "You're ALONE. The only one here. More uses are coming soon!",
 };
+
+export const EMPTY_NOTIFICATIONS = {
+  title: "You're All Caught Up",
+  message: "New answers and accepted answers will appear here.",
+};

@@ -13,20 +13,21 @@ const formatResponse = (
   message: string,
   errors?: Record<string, string[]>,
 ) => {
-  const responseContent = {
-    success: false,
-    error: {
-      message,
-      details: errors,
-    },
-  };
+  const errorDetails = { message, details: errors };
 
   // 根据响应类型返回不同格式的响应
   // 对于 API 路由，返回标准的 HTTP 响应
   // 对于 server actions，直接返回数据对象
   return response === "api"
-    ? NextResponse.json(responseContent, { status })
-    : ({ status, ...responseContent } as ActionResponse);
+    ? NextResponse.json(
+        { success: false, error: errorDetails },
+        { status },
+      )
+    : ({
+        status,
+        success: false,
+        errors: errorDetails,
+      } as ActionResponse);
 };
 
 function handleError(error: unknown, responseType: "api"): NextResponse;
@@ -83,26 +84,26 @@ function handleError(
   if (APICallError.isInstance(error)) {
     logger.error(
       {
-        err: error,
-        url: error.url,
         statusCode: error.statusCode,
-        responseBody: error.responseBody,
       },
-      `AI Provider Error: ${error.message}`,
+      "AI provider request failed",
     );
 
     return formatResponse(
       responseType,
-      error.statusCode ?? 500,
-      error.message,
+      502,
+      "The AI service is temporarily unavailable.",
     );
   }
 
   // 处理其他类型的错误（如 JavaScript 内置错误），返回一个通用的错误响应
   if (error instanceof Error) {
-    // 这种情况下，我们对错误了解不多，所以直接传 error.message 就行
-    logger.error(error.message);
-    return formatResponse(responseType, 500, error.message);
+    logger.error({ err: error }, "Unexpected application error");
+    return formatResponse(
+      responseType,
+      500,
+      "Something went wrong. Please try again.",
+    );
   }
 
   logger.error({ err: error }, "An unknown error occurred.");

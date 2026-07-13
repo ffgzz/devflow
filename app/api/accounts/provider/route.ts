@@ -1,33 +1,36 @@
-import { NextResponse } from "next/server";
-
 import Account from "@/database/account.model";
+import { requireAuthenticatedUserId } from "@/lib/auth/authorization";
+import { toAccountDTO } from "@/lib/dal/dto";
 import handleError from "@/lib/handlers/error";
 import { NotFoundError, ValidationError } from "@/lib/http-errors";
 import { dbConnect } from "@/lib/mongoose";
 import { AccountSchema } from "@/lib/validations";
+import { NextResponse } from "next/server";
+
+const ProviderLookupSchema = AccountSchema.pick({
+  providerAccountId: true,
+}).strict();
 
 export async function POST(request: Request) {
-  const { providerAccountId } = await request.json();
-
   try {
-    // 连接数据库
+    const viewerId = await requireAuthenticatedUserId();
+    const validated = ProviderLookupSchema.safeParse(await request.json());
+
+    if (!validated.success) {
+      throw new ValidationError(validated.error.flatten().fieldErrors);
+    }
+
     await dbConnect();
-
-    const validatedData = AccountSchema.partial().safeParse({
-      providerAccountId,
-    });
-
-    if (!validatedData.success)
-      throw new ValidationError(validatedData.error.flatten().fieldErrors);
-
-    const account = await Account.findOne({ providerAccountId });
+    const account = await Account.findOne({
+      userId: viewerId,
+      providerAccountId: validated.data.providerAccountId,
+    })
+      .select("name image provider")
+      .lean();
     if (!account) throw new NotFoundError("Account");
 
     return NextResponse.json(
-      {
-        success: true,
-        data: account,
-      },
+      { success: true, data: toAccountDTO(account) },
       { status: 200 },
     );
   } catch (error) {

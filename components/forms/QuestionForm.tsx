@@ -3,17 +3,32 @@
 import { AskQuestionSchema } from "@/lib/validations";
 // zodResolver 是连接 Zod校验规则 和 React Hook Form 的桥梁
 import ROUTES from "@/constants/routes";
+import { useIndexedDbDraft } from "@/hooks/useIndexedDbDraft";
 import { createQuestion, editQuestion } from "@/lib/actions/question.action";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { MDXEditorMethods } from "@mdxeditor/editor";
 import { Loader2Icon } from "lucide-react";
+import { useSession } from "next-auth/react";
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
-import { KeyboardEvent, useRef, useTransition } from "react";
-import { Controller, ControllerRenderProps, useForm } from "react-hook-form";
+import {
+  KeyboardEvent,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useTransition,
+} from "react";
+import {
+  Controller,
+  ControllerRenderProps,
+  useForm,
+  useWatch,
+} from "react-hook-form";
 import { toast } from "sonner";
 import z from "zod";
 import TagCard from "../cards/TagCard";
+import DraftStatus from "./DraftStatus";
 import { Button } from "../ui/button";
 import {
   Field,
@@ -36,9 +51,20 @@ interface Params {
   isEdit?: boolean;
 }
 
+interface QuestionDraftData {
+  title: string;
+  content: string;
+  tags: string[];
+  tagInput: string;
+}
+
 const QuestionForm = ({ question, isEdit = false }: Params) => {
   const router = useRouter();
+  const session = useSession();
   const editorRef = useRef<MDXEditorMethods>(null);
+  const draftOwnerRef = useRef<string | undefined>(undefined);
+  const [editorRevision, setEditorRevision] = useState(0);
+  const [tagInput, setTagInput] = useState("");
   // useTransition() 是 React 提供的一个 Hook，用来把某些状态更新标记成 低优先级更新。
   const [isPending, startTransition] = useTransition();
 
@@ -50,6 +76,98 @@ const QuestionForm = ({ question, isEdit = false }: Params) => {
       tags: question?.tags.map((tag) => tag.name) || [],
     },
   });
+
+  const watchedValues = useWatch({ control: form.control });
+  const draftData = useMemo<QuestionDraftData>(
+    () => ({
+      title: watchedValues.title ?? "",
+      content: watchedValues.content ?? "",
+      tags: watchedValues.tags?.filter(
+        (tag): tag is string => typeof tag === "string",
+      ) ?? [],
+      tagInput,
+    }),
+    [tagInput, watchedValues.content, watchedValues.tags, watchedValues.title],
+  );
+  const shouldPersistDraft = useMemo(() => {
+    const initialTags = question?.tags.map((tag) => tag.name) ?? [];
+
+    return (
+      draftData.title !== (question?.title ?? "") ||
+      draftData.content !== (question?.content ?? "") ||
+      draftData.tagInput.length > 0 ||
+      JSON.stringify(draftData.tags) !== JSON.stringify(initialTags)
+    );
+  }, [draftData, question]);
+  const {
+    status: draftStatus,
+    pendingDraft,
+    restoreDraft,
+    discardDraft,
+    clearDraft,
+  } = useIndexedDbDraft({
+    userId: session.data?.user?.id,
+    kind: "question",
+    resourceId: isEdit && question ? question._id : "new",
+    data: draftData,
+    enabled: session.status === "authenticated",
+    shouldPersist: shouldPersistDraft,
+  });
+
+  // A client-side account switch must not carry user A's in-memory question
+  // into user B's IndexedDB key. Reset to the server snapshot at the account
+  // boundary; the new account can then restore only its own stored draft.
+  useEffect(() => {
+    if (session.status === "loading") return;
+
+    const nextOwner = session.data?.user?.id;
+    if (draftOwnerRef.current && draftOwnerRef.current !== nextOwner) {
+      let cancelled = false;
+      queueMicrotask(() => {
+        if (cancelled) return;
+        const initialContent = question?.content ?? "";
+        form.reset({
+          title: question?.title ?? "",
+          content: initialContent,
+          tags: question?.tags.map((tag) => tag.name) ?? [],
+        });
+        setTagInput("");
+        editorRef.current?.setMarkdown(initialContent);
+        setEditorRevision((revision) => revision + 1);
+      });
+      draftOwnerRef.current = nextOwner;
+
+      return () => {
+        cancelled = true;
+      };
+    }
+    draftOwnerRef.current = nextOwner;
+  }, [form, question, session.data?.user?.id, session.status]);
+
+  const handleRestoreDraft = () => {
+    const draft = restoreDraft();
+    if (
+      !draft ||
+      typeof draft.title !== "string" ||
+      typeof draft.content !== "string" ||
+      !Array.isArray(draft.tags)
+    ) {
+      toast.error("This draft could not be restored.");
+      void discardDraft();
+      return;
+    }
+
+    form.reset({
+      title: draft.title,
+      content: draft.content,
+      tags: draft.tags.filter((tag) => typeof tag === "string").slice(0, 3),
+    });
+    setTagInput(typeof draft.tagInput === "string" ? draft.tagInput : "");
+    // Remount once so MDXEditor receives the restored Markdown as its initial
+    // value. Continuously calling setMarkdown on each keystroke would move the
+    // cursor and break normal editing.
+    setEditorRevision((revision) => revision + 1);
+  };
 
   const handleInputKeyDown = (
     e: KeyboardEvent<HTMLInputElement>,
@@ -64,10 +182,22 @@ const QuestionForm = ({ question, isEdit = false }: Params) => {
       e.preventDefault();
       const tagInput = e.currentTarget.value.trim();
 
-      if (tagInput && tagInput.length < 15 && !field.value.includes(tagInput)) {
-        form.setValue("tags", [...field.value, tagInput]);
+      if (field.value.length >= 3) {
+        form.setError("tags", {
+          type: "manual",
+          message: "You can add up to 3 tags.",
+        });
+      } else if (
+        tagInput &&
+        tagInput.length < 15 &&
+        !field.value.includes(tagInput)
+      ) {
+        form.setValue("tags", [...field.value, tagInput], {
+          shouldDirty: true,
+          shouldValidate: true,
+        });
         // 在用户按下 Enter 键并成功添加标签后，我们需要清空输入框，以便用户可以继续输入下一个标签。
-        e.currentTarget.value = "";
+        setTagInput("");
         // 清除标签相关的错误信息（如果有的话），确保用户在添加标签后不会看到错误提示。
         form.clearErrors("tags");
       } else if (tagInput.length >= 15) {
@@ -94,7 +224,10 @@ const QuestionForm = ({ question, isEdit = false }: Params) => {
     // 当用户点击标签上的移除按钮时，我们需要从 tags 数组中删除对应的标签
     const newTags = field.value.filter((t) => t !== tag);
     // 更新表单状态中的 tags 字段，确保 UI 能够正确反映标签的删除
-    form.setValue("tags", newTags);
+    form.setValue("tags", newTags, {
+      shouldDirty: true,
+      shouldValidate: true,
+    });
     // 如果用户删除了所有标签，我们需要设置一个错误提示，告诉用户至少需要添加一个标签
     if (newTags.length === 0) {
       form.setError("tags", {
@@ -107,6 +240,7 @@ const QuestionForm = ({ question, isEdit = false }: Params) => {
   const handleCreateQuestion = async (
     data: z.infer<typeof AskQuestionSchema>,
   ) => {
+    const requestOwner = session.data?.user?.id;
     // startTransition() 的作用是将 createQuestion 这个操作标记为一个低优先级的更新。这意味着在这个操作执行期间，React 会继续响应用户的其他交互，而不会因为这个操作而导致界面卡顿或无响应。
     startTransition(async () => {
       // 编辑问题的处理逻辑，跟创建问题分开
@@ -115,21 +249,23 @@ const QuestionForm = ({ question, isEdit = false }: Params) => {
           questionId: question?._id,
           ...data,
         });
+        if (draftOwnerRef.current !== requestOwner) return;
 
-        if (result.success) {
+        if (result.success && result.data) {
+          await clearDraft();
+          if (draftOwnerRef.current !== requestOwner) return;
           toast.success("Success", {
             description: "Your question has been updated successfully.",
             position: "top-center",
           });
-          if (result.data)
-            router.push(ROUTES.QUESTION(result.data._id.toString()));
-          else
-            toast.error(`Error ${result.status}`, {
-              description:
-                result.errors?.message ||
-                "An error occurred while updating the question.",
-              position: "top-center",
-            });
+          router.push(ROUTES.QUESTION(result.data._id.toString()));
+        } else {
+          toast.error(`Error ${result.status ?? ""}`.trim(), {
+            description:
+              result.errors?.message ||
+              "An error occurred while updating the question.",
+            position: "top-center",
+          });
         }
         // 如果是编辑问题，我们在处理完编辑逻辑后就直接返回，不执行后面的逻辑了
         return;
@@ -137,21 +273,23 @@ const QuestionForm = ({ question, isEdit = false }: Params) => {
 
       // 使用 server action 创建问题
       const result = await createQuestion(data);
+      if (draftOwnerRef.current !== requestOwner) return;
       // 根据 server action 的结果显示成功或错误的 toast 提示，并在成功时重定向到新创建的问题页面
-      if (result.success) {
+      if (result.success && result.data) {
+        await clearDraft();
+        if (draftOwnerRef.current !== requestOwner) return;
         toast.success("Success", {
           description: "Your question has been created successfully.",
           position: "top-center",
         });
-        if (result.data)
-          router.push(ROUTES.QUESTION(result.data._id.toString()));
-        else
-          toast.error(`Error ${result.status}`, {
-            description:
-              result.errors?.message ||
-              "An error occurred while creating the question.",
-            position: "top-center",
-          });
+        router.push(ROUTES.QUESTION(result.data._id.toString()));
+      } else {
+        toast.error(`Error ${result.status ?? ""}`.trim(), {
+          description:
+            result.errors?.message ||
+            "An error occurred while creating the question.",
+          position: "top-center",
+        });
       }
     });
   };
@@ -161,18 +299,29 @@ const QuestionForm = ({ question, isEdit = false }: Params) => {
       className="flex w-full flex-col gap-10"
       onSubmit={form.handleSubmit(handleCreateQuestion)}
     >
+      <DraftStatus
+        status={draftStatus}
+        pendingUpdatedAt={pendingDraft?.updatedAt}
+        onRestore={handleRestoreDraft}
+        onDiscard={discardDraft}
+      />
+
       <FieldGroup>
         <Controller
           control={form.control}
           name="title"
           render={({ field, fieldState }) => (
             <Field>
-              <FieldLabel className="paragraph-semibold text-dark400_light800">
+              <FieldLabel
+                htmlFor="question-title"
+                className="paragraph-semibold text-dark400_light800"
+              >
                 Question Title <span className="text-primary-500">*</span>
               </FieldLabel>
               <FieldContent>
                 <Input
                   {...field}
+                  id="question-title"
                   className="paragraph-regular background-light700_dark300 light-border-2 text-dark300_light700 no-focus min-h-[56px] border"
                 />
                 <FieldDescription className="body-regular mt-2.5 text-light-500">
@@ -189,13 +338,17 @@ const QuestionForm = ({ question, isEdit = false }: Params) => {
           control={form.control}
           name="content"
           render={({ field, fieldState }) => (
-            <Field>
-              <FieldLabel className="paragraph-semibold text-dark400_light800">
+            <Field aria-labelledby="question-content-label">
+              <FieldLabel
+                id="question-content-label"
+                className="paragraph-semibold text-dark400_light800"
+              >
                 Detailed explanation of your problem{" "}
                 <span className="text-primary-500">*</span>
               </FieldLabel>
               <FieldContent>
                 <Editor
+                  key={editorRevision}
                   value={field.value}
                   editorRef={editorRef}
                   fieldChange={field.onChange}
@@ -215,12 +368,18 @@ const QuestionForm = ({ question, isEdit = false }: Params) => {
           name="tags"
           render={({ field, fieldState }) => (
             <Field>
-              <FieldLabel className="paragraph-semibold text-dark400_light800">
+              <FieldLabel
+                htmlFor="question-tags"
+                className="paragraph-semibold text-dark400_light800"
+              >
                 Tags <span className="text-primary-500">*</span>
               </FieldLabel>
               <FieldContent className="gap-3">
                 <div>
                   <Input
+                    id="question-tags"
+                    value={tagInput}
+                    onChange={(event) => setTagInput(event.target.value)}
                     className="paragraph-regular background-light700_dark300 light-border-2 text-dark300_light700 no-focus min-h-[56px] border"
                     placeholder="Add tags..."
                     onKeyDown={(e) => {

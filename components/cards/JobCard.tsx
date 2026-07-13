@@ -3,6 +3,33 @@ import Link from "next/link";
 
 import { processJobTitle } from "@/lib/utils";
 
+const allowedLogoHosts = new Set([
+  "pixnio.com",
+  "lh3.googleusercontent.com",
+  "avatars.githubusercontent.com",
+]);
+
+const safeHttpUrl = (value?: string) => {
+  if (!value) return null;
+
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:" || url.protocol === "http:" ? value : null;
+  } catch {
+    return null;
+  }
+};
+
+const safeLogoUrl = (value?: string) => {
+  const safeUrl = safeHttpUrl(value);
+  if (!safeUrl) return null;
+
+  const url = new URL(safeUrl);
+  return url.protocol === "https:" && allowedLogoHosts.has(url.hostname)
+    ? safeUrl
+    : null;
+};
+
 interface JobLocationProps {
   job_country?: string;
   job_city?: string;
@@ -15,11 +42,16 @@ const JobLocation = ({
   job_city,
   job_state,
 }: JobLocationProps) => {
+  const countryCode = job_country?.toUpperCase();
+  const hasCountryFlag = Boolean(
+    countryCode && /^[A-Z]{2}$/.test(countryCode),
+  );
+
   return (
     <div className="background-light800_dark400 flex items-center justify-end gap-2 rounded-2xl px-3 py-1.5">
-      {job_country && (
+      {hasCountryFlag && (
         <Image
-          src={`https://flagsapi.com/${job_country}/flat/64.png`}
+          src={`https://flagsapi.com/${countryCode}/flat/64.png`}
           alt="country symbol"
           width={16}
           height={16}
@@ -49,6 +81,9 @@ const JobCard = ({ job }: { job: Job }) => {
     job_state,
     job_country,
   } = job;
+  const employerLogoUrl = safeLogoUrl(employer_logo);
+  const employerWebsiteUrl = safeHttpUrl(employer_website) ?? "/jobs";
+  const applyUrl = safeHttpUrl(job_apply_link) ?? "/jobs";
 
   return (
     <section className="background-light900_dark200 light-border shadow-light100_darknone flex flex-col items-start gap-6 rounded-lg border p-6 sm:flex-row sm:p-8">
@@ -61,13 +96,14 @@ const JobCard = ({ job }: { job: Job }) => {
       </div>
 
       <div className="flex items-center gap-6">
-        {employer_logo ? (
+        {employerLogoUrl ? (
           <Link
-            href={employer_website ?? "/jobs"}
+            href={employerWebsiteUrl}
+            rel="noopener noreferrer"
             className="background-light800_dark400 relative size-16 rounded-xl"
           >
             <Image
-              src={employer_logo}
+              src={employerLogoUrl}
               alt="company logo"
               fill
               className="size-full object-contain p-2"
@@ -131,8 +167,9 @@ const JobCard = ({ job }: { job: Job }) => {
           </div>
 
           <Link
-            href={job_apply_link ?? "/jobs"}
+            href={applyUrl}
             target="_blank"
+            rel="noopener noreferrer"
             className="flex items-center gap-2"
           >
             <p className="body-semibold primary-text-gradient">View job</p>

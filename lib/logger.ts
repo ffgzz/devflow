@@ -8,6 +8,29 @@ const logger = pino({
   // 日志级别。会读取环境变量 LOG_LEVEL；未设置时默认只输出 info 及以上级别。
   level: process.env.LOG_LEVEL || "info",
 
+  // Keep accidental credentials, cookies and provider tokens out of both
+  // local logs and production log drains.
+  redact: {
+    censor: "[REDACTED]",
+    paths: [
+      "password",
+      "*.password",
+      "token",
+      "*.token",
+      "apiKey",
+      "*.apiKey",
+      "authorization",
+      "*.authorization",
+      "cookie",
+      "*.cookie",
+      "headers.authorization",
+      "headers.cookie",
+      "req.headers.authorization",
+      "req.headers.cookie",
+      "err.config.headers.authorization",
+    ],
+  },
+
   ...(isProduction
     ? {}
     : {

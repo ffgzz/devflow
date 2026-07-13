@@ -1,9 +1,9 @@
 "use client";
 
-import { toggleSaveQuestion } from "@/lib/actions/collection.action";
+import { setQuestionSaved } from "@/lib/actions/collection.action";
 import { useSession } from "next-auth/react";
 import Image from "next/image";
-import { use, useState } from "react";
+import { use, useEffect, useState } from "react";
 import { toast } from "sonner";
 
 // 收藏问题
@@ -25,26 +25,40 @@ const SaveQuestion = ({
   const { saved: hasSaved } = data || {};
 
   const [isLoading, setIsLoading] = useState(false);
+  const [saved, setSaved] = useState(Boolean(hasSaved));
+
+  useEffect(() => {
+    setSaved(Boolean(hasSaved));
+  }, [hasSaved]);
 
   const handleSave = async () => {
-    if (isLoading) return; // 如果正在加载中，直接返回，避免重复点击
+    if (isLoading) return;
     if (!userId) return toast.error("You must be logged in to save questions");
 
+    const previousSaved = saved;
+    const nextSaved = !previousSaved;
+    setSaved(nextSaved);
     setIsLoading(true);
     try {
-      const { success, data, errors } = await toggleSaveQuestion({
+      const { success, data, errors } = await setQuestionSaved({
         questionId,
+        saved: nextSaved,
       });
-      if (!success)
+      if (!success || !data) {
+        setSaved(previousSaved);
         throw new Error(errors?.message || "Failed to save question");
+      }
+
+      setSaved(data.saved);
 
       toast.success(
-        `Question ${data?.saved ? "saved to" : "removed from"} your collection successfully!`,
+        `Question ${data.saved ? "saved to" : "removed from"} your collection successfully!`,
         {
           position: "top-center",
         },
       );
     } catch (error) {
+      setSaved(previousSaved);
       toast.error("question", {
         description:
           error instanceof Error ? error.message : "An unknown error occurred",
@@ -56,15 +70,21 @@ const SaveQuestion = ({
   };
 
   return (
-    <Image
-      src={hasSaved ? "/icons/star-filled.svg" : "/icons/star-red.svg"}
-      alt="Save question"
-      width={18}
-      height={18}
-      className={`cursor-pointer ${isLoading && "opacity-50"}`}
-      aria-label="Save question"
-      onClick={handleSave}
-    />
+    <button
+      type="button"
+      aria-label={saved ? "Remove question from collection" : "Save question"}
+      aria-pressed={saved}
+      disabled={isLoading || session.status === "loading"}
+      className="flex size-8 items-center justify-center rounded-sm disabled:cursor-not-allowed disabled:opacity-50"
+      onClick={() => void handleSave()}
+    >
+      <Image
+        src={saved ? "/icons/star-filled.svg" : "/icons/star-red.svg"}
+        alt=""
+        width={18}
+        height={18}
+      />
+    </button>
   );
 };
 

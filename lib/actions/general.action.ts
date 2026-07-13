@@ -4,6 +4,7 @@ import { Answer, Question, Tag, User } from "@/database";
 
 import action from "../handlers/action";
 import handleError from "../handlers/error";
+import { escapeRegex } from "../utils";
 import { GlobalSearchSchema } from "../validations";
 
 // 这个函数实现了一个全局搜索功能，允许用户根据输入的查询字符串和可选的类型参数来搜索问题、答案、用户或标签。它首先验证输入参数，然后根据指定的类型执行相应的数据库查询，最后返回搜索结果。如果发生错误，则通过 handleError 函数处理错误并返回适当的响应。
@@ -20,7 +21,7 @@ export async function globalSearch(
   }
 
   const { query, type } = validationResult.params;
-  const regexQuery = { $regex: query, $options: "i" };
+  const regexQuery = { $regex: escapeRegex(query), $options: "i" };
   const typeLower = type?.toLowerCase();
 
   const searchQuestions = async (limit: number) => {

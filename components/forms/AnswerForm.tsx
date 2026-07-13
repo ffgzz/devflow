@@ -3,16 +3,18 @@
 import { createAnswer } from "@/lib/actions/answer.action";
 import { api } from "@/lib/api";
 import { AnswerSchema } from "@/lib/validations";
+import { useIndexedDbDraft } from "@/hooks/useIndexedDbDraft";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { MDXEditorMethods } from "@mdxeditor/editor";
 import { Loader2Icon } from "lucide-react";
 import { useSession } from "next-auth/react";
 import dynamic from "next/dynamic";
 import Image from "next/image";
-import { useRef, useState, useTransition } from "react";
-import { Controller, useForm } from "react-hook-form";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { Controller, useForm, useWatch } from "react-hook-form";
 import { toast } from "sonner";
 import z from "zod";
+import DraftStatus from "./DraftStatus";
 import { Button } from "../ui/button";
 import {
   Field,
@@ -41,6 +43,8 @@ const AnswerForm = ({ questionId, questionTitle, questionContent }: Props) => {
   const session = useSession();
 
   const editorRef = useRef<MDXEditorMethods>(null);
+  const draftOwnerRef = useRef<string | undefined>(undefined);
+  const [editorRevision, setEditorRevision] = useState(0);
 
   const form = useForm<z.infer<typeof AnswerSchema>>({
     resolver: zodResolver(AnswerSchema),
@@ -49,26 +53,87 @@ const AnswerForm = ({ questionId, questionTitle, questionContent }: Props) => {
     },
   });
 
+  const watchedContent = useWatch({
+    control: form.control,
+    name: "content",
+  });
+  const draftData = useMemo(
+    () => ({ content: watchedContent ?? "" }),
+    [watchedContent],
+  );
+  const {
+    status: draftStatus,
+    pendingDraft,
+    restoreDraft,
+    discardDraft,
+    clearDraft,
+  } = useIndexedDbDraft({
+    userId: session.data?.user?.id,
+    kind: "answer",
+    resourceId: questionId,
+    data: draftData,
+    enabled: session.status === "authenticated",
+    shouldPersist: draftData.content.length > 0,
+  });
+
+  // Never carry user A's in-memory answer into user B's draft key when an
+  // account changes without a full page navigation.
+  useEffect(() => {
+    if (session.status === "loading") return;
+    const nextOwner = session.data?.user?.id;
+    if (draftOwnerRef.current && draftOwnerRef.current !== nextOwner) {
+      let cancelled = false;
+      queueMicrotask(() => {
+        if (cancelled) return;
+        form.reset({ content: "" });
+        editorRef.current?.setMarkdown("");
+        setEditorRevision((revision) => revision + 1);
+      });
+      draftOwnerRef.current = nextOwner;
+
+      return () => {
+        cancelled = true;
+      };
+    }
+    draftOwnerRef.current = nextOwner;
+  }, [form, session.data?.user?.id, session.status]);
+
+  const handleRestoreDraft = () => {
+    const draft = restoreDraft();
+    if (!draft || typeof draft.content !== "string") {
+      toast.error("This draft could not be restored.");
+      void discardDraft();
+      return;
+    }
+
+    form.reset({ content: draft.content });
+    setEditorRevision((revision) => revision + 1);
+  };
+
   const handleSubmit = async (values: z.infer<typeof AnswerSchema>) => {
+    const requestOwner = session.data?.user?.id;
     // startTransition 的作用是：把某些状态更新标记成 低优先级更新。这样可以不阻塞用户界面，让用户在等待结果的同时还能继续进行其他操作。
     startAnsweringTransition(async () => {
       const result = await createAnswer({
         questionId,
         content: values.content,
       });
+      if (draftOwnerRef.current !== requestOwner) return;
 
       if (result.success) {
         form.reset();
+
+        if (editorRef.current) {
+          editorRef.current.setMarkdown("");
+        }
+        await clearDraft({ resume: true });
+        if (draftOwnerRef.current !== requestOwner) return;
 
         toast.success("Success", {
           description: "Your answer has been posted.",
           position: "top-center",
         });
 
-        // 如果编辑器实例存在，我们就调用它的 setMarkdown 方法来清空编辑器内容。这样做是为了确保在提交答案后，编辑器中的内容也会被清空，提供更好的用户体验。
-        if (editorRef.current) {
-          editorRef.current.setMarkdown("");
-        }
       } else {
         toast.error("Failed to post answer", {
           description: result.errors?.message,
@@ -89,6 +154,7 @@ const AnswerForm = ({ questionId, questionTitle, questionContent }: Props) => {
     }
     // 设置 isAISubmitting 状态为 true，表示 AI 回答正在生成中。这通常会触发界面上的加载状态，例如禁用按钮和显示加载动画，以防止用户在等待 AI 生成回答时进行其他操作。
     setIsAISubmitting(true);
+    const requestOwner = session.data.user?.id;
     // 获取用户在编辑器中输入的内容
     const userAnswer = editorRef.current?.getMarkdown();
 
@@ -98,6 +164,7 @@ const AnswerForm = ({ questionId, questionTitle, questionContent }: Props) => {
         questionContent,
         userAnswer,
       );
+      if (draftOwnerRef.current !== requestOwner) return;
 
       if (!success) {
         return toast.error("Failed to generate AI answer", {
@@ -128,6 +195,7 @@ const AnswerForm = ({ questionId, questionTitle, questionContent }: Props) => {
         position: "top-center",
       });
     } catch (error) {
+      if (draftOwnerRef.current !== requestOwner) return;
       return toast.error("Failed to generate AI answer", {
         position: "top-center",
         description:
@@ -141,12 +209,15 @@ const AnswerForm = ({ questionId, questionTitle, questionContent }: Props) => {
   return (
     <div>
       <div className="flex flex-col justify-between gap-5 sm:flex-row sm:items-center sm:gap-2">
-        <h4 className="paragraph-semibold text-dark400_light800">
-          Write your anser here
+        <h4
+          id="answer-editor-label"
+          className="paragraph-semibold text-dark400_light800"
+        >
+          Write your answer here
         </h4>
         <Button
           className="btn light-border-2 gap-1.5 rounded-md border px-4 py-2.5 text-primary-500 shadow-none "
-          disabled={isAISubmitting}
+          disabled={isAISubmitting || isAnswering}
           onClick={generateAIAnswer}
         >
           {isAISubmitting ? (
@@ -173,14 +244,22 @@ const AnswerForm = ({ questionId, questionTitle, questionContent }: Props) => {
         className="mt-6 flex w-full flex-col gap-10"
         onSubmit={form.handleSubmit(handleSubmit)}
       >
+        <DraftStatus
+          status={draftStatus}
+          pendingUpdatedAt={pendingDraft?.updatedAt}
+          onRestore={handleRestoreDraft}
+          onDiscard={discardDraft}
+        />
+
         <FieldGroup>
           <Controller
             control={form.control}
             name="content"
             render={({ field, fieldState }) => (
-              <Field>
+              <Field aria-labelledby="answer-editor-label">
                 <FieldContent>
                   <Editor
+                    key={editorRevision}
                     value={field.value}
                     editorRef={editorRef}
                     fieldChange={field.onChange}
@@ -196,7 +275,11 @@ const AnswerForm = ({ questionId, questionTitle, questionContent }: Props) => {
         </FieldGroup>
 
         <div className="flex justify-end">
-          <Button type="submit" className="primary-gradient w-fit">
+          <Button
+            type="submit"
+            disabled={isAnswering || isAISubmitting}
+            className="primary-gradient w-fit"
+          >
             {isAnswering ? (
               <>
                 <Loader2Icon className="mr-2 size-4 animate-spin" />

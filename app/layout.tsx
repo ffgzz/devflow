@@ -4,15 +4,12 @@ import { cn } from "@/lib/utils";
 import type { Metadata } from "next";
 import { SessionProvider } from "next-auth/react";
 import { ThemeProvider } from "next-themes";
-import { Geist } from "next/font/google";
 import localFont from "next/font/local";
 import "./globals.css";
 
-const geist = Geist({ subsets: ["latin"], variable: "--font-sans" });
-
 const inter = localFont({
   src: "./fonts/InterVF.ttf",
-  variable: "--font-inter",
+  variable: "--font-sans",
   weight: "100 200 300 400 500 700 800 900",
 });
 
@@ -45,9 +42,9 @@ export default async function RootLayout({
         "h-full",
         "antialiased",
         inter.className,
+        inter.variable,
         spaceGrotesk.variable,
         "font-sans",
-        geist.variable,
       )}
       suppressHydrationWarning
     >

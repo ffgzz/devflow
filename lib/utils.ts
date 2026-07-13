@@ -8,6 +8,11 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+/** Treat user search text as literal text when building MongoDB regex queries. */
+export function escapeRegex(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 export function getTechDescription(techName: string): string {
   const normalizedTech = techName.replace(/[ .]/g, "").toLowerCase();
 

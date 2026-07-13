@@ -2,6 +2,7 @@ import Account from "./account.model";
 import Answer from "./answer.model";
 import Collection from "./collection.model";
 import Interaction from "./interaction.model";
+import Notification from "./notification.model";
 import Question from "./question.model";
 import TagQuestion from "./tag-question.model";
 import Tag from "./tag.model";
@@ -13,6 +14,7 @@ export {
   Answer,
   Collection,
   Interaction,
+  Notification,
   Question,
   Tag,
   TagQuestion,

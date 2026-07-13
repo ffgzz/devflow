@@ -32,7 +32,12 @@ const GlobalResult = () => {
   const [isLoading, setLoading] = useState(true);
 
   const global = searchParams.get("global");
-  const type = searchParams.get("type");
+  const typeParam = searchParams.get("type");
+  const type = ["question", "answer", "user", "tag"].includes(
+    typeParam ?? "",
+  )
+    ? (typeParam as "question" | "answer" | "user" | "tag")
+    : null;
 
   // 这个 useEffect 用于监听 global 和 type 查询参数的变化，并根据这些参数执行全局搜索。
   // 当 global 参数存在时，组件会调用 globalSearch 函数来获取搜索结果，并更新 result 状态以显示这些结果。同时，组件还管理 isLoading 状态来显示加载指示器，直到搜索结果返回或发生错误。这个机制确保了用户在输入搜索内容或更改搜索类型时能够及时看到相应的搜索结果。

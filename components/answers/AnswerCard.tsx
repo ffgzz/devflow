@@ -7,6 +7,7 @@ import UserAvatar from "../UserAvatar";
 import Preview from "../editor/Preview";
 import EditDeleteAction from "../user/EditDeleteAction";
 import Votes from "../votes/Votes";
+import { AnswerAcceptanceControl } from "./AnswerAcceptanceControl";
 
 interface Props extends Answer {
   containerClasses?: string;
@@ -78,6 +79,7 @@ const AnswerCard = ({
               hasVotedPromise={hasVotedPromise}
               targetId={_id}
               targetType="answer"
+              targetAuthorId={author._id}
             />
           </Suspense>
         </div>
@@ -85,6 +87,8 @@ const AnswerCard = ({
 
       {/* 渲染答案的内容 */}
       <Preview content={content} />
+
+      <AnswerAcceptanceControl answerId={_id} />
 
       {/* 用户详情页的答案卡片需要显示这个 */}
       {showReadMore && (

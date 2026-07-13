@@ -4,6 +4,7 @@ import mongoose from "mongoose";
 import action from "../handlers/action";
 import handleError from "../handlers/error";
 import { dbConnect } from "../mongoose";
+import { escapeRegex } from "../utils";
 import {
   GetTagQuestionsSchema,
   PaginatedSearchParamsSchema,
@@ -27,7 +28,9 @@ export const getTags = async (
 
   const filterQuery: Record<string, unknown> = {};
   if (query) {
-    filterQuery.$or = [{ name: { $regex: query, $options: "i" } }];
+    filterQuery.$or = [
+      { name: { $regex: escapeRegex(query), $options: "i" } },
+    ];
   }
   // 排序
   let sortCriteria: Record<string, mongoose.SortOrder> = {};
@@ -94,7 +97,7 @@ export const getTagQuestions = async (
     // 如果用户还提供了搜索查询（query），我们就进一步过滤问题的标题，使用正则表达式进行模糊匹配，确保标题中包含用户输入的查询字符串（不区分大小写）。
     const filterQuery: Record<string, unknown> = { tags: { $in: [tagId] } };
     if (query) {
-      filterQuery.title = { $regex: query, $options: "i" };
+      filterQuery.title = { $regex: escapeRegex(query), $options: "i" };
     }
     // 获取满足条件的问题总数
     const totalQuestions = await Question.countDocuments(filterQuery);

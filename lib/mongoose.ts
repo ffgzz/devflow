@@ -1,12 +1,7 @@
 // 在连接数据库之前，先把所有 Mongoose models 都加载并注册好
 import "@/database";
 import mongoose, { type Mongoose } from "mongoose";
-import dns from "node:dns/promises";
 import logger from "./logger";
-
-// 用来覆盖系统默认的 DNS 解析服务器
-// Cloudflare 的 DNS 服务器，提供快速且可靠的 DNS 解析服务，确保数据库连接的稳定性和性能。
-dns.setServers(["1.1.1.1"]);
 
 // 封装 MongoDB/Mongoose 连接，让项目里其它服务端代码只需要调用 dbConnect()，不用每次手写 mongoose.connect(...)。
 const MONGODB_URI = process.env.MONGODB_URI as string;
@@ -48,13 +43,15 @@ export const dbConnect = async (): Promise<Mongoose> => {
     cached.promise = mongoose
       .connect(MONGODB_URI, {
         dbName: "devflow",
+        serverSelectionTimeoutMS: 10_000,
       })
       .then((res) => {
         logger.info("Connected to MongoDB");
         return res;
       })
       .catch((err) => {
-        logger.error("Error connecting to MongoDB:", err);
+        cached.promise = null;
+        logger.error({ err }, "Error connecting to MongoDB");
         throw err;
       });
   }

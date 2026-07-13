@@ -4,17 +4,30 @@ import ROUTES from "@/constants/routes";
 import Answer, { IAnswerDoc } from "@/database/answer.model";
 import Question from "@/database/question.model";
 import Vote from "@/database/vote.model";
+import {
+  createNotification,
+  deleteNotificationEvent,
+  deleteNotificationsForAnswer,
+} from "@/lib/dal/notification";
+import {
+  recordContentInteraction,
+  rollbackVoteInteractionsForTargets,
+} from "@/lib/dal/interaction";
 import mongoose from "mongoose";
 import { revalidatePath } from "next/cache";
-import { after } from "next/server";
 import action from "../handlers/action";
 import handleError from "../handlers/error";
+import {
+  ForbiddenError,
+  NotFoundError,
+  UnauthorizedError,
+} from "../http-errors";
 import {
   AnswerServerSchema,
   DeleteAnswerSchema,
   GetAnswersSchema,
+  SetAnswerAcceptanceSchema,
 } from "../validations";
-import { createInteraction } from "./interaction.action";
 
 export async function createAnswer(
   params: CreateAnswerParams,
@@ -32,45 +45,68 @@ export async function createAnswer(
   const { questionId, content } = validationResult.params;
   const userId = validationResult.session?.user?.id;
 
+  if (!userId) {
+    return handleError(new UnauthorizedError()) as ErrorResponse;
+  }
+
   const session = await mongoose.startSession();
-  session.startTransaction();
+  let createdAnswer: IAnswerDoc | null = null;
 
   try {
-    const question = await Question.findById(questionId).session(session);
-    if (!question) {
-      throw new Error("Question not found");
-    }
+    await session.withTransaction(async () => {
+      const question = await Question.findById(questionId).session(session);
+      if (!question) throw new NotFoundError("Question");
 
-    const [answer] = await Answer.create(
-      [{ content, question: questionId, author: userId }],
-      { session },
-    );
-    if (!answer) {
-      throw new Error("Failed to create answer");
-    }
+      const [answer] = await Answer.create(
+        [{ content, question: questionId, author: userId }],
+        { session },
+      );
+      if (!answer) {
+        throw new Error("Failed to create answer");
+      }
+      createdAnswer = answer;
 
-    // 创建回答成功后，我们需要将对应问题的 answers 字段加 1，以保持数据的一致性。
-    question.answers += 1;
-    await question.save({ session });
+      // 创建回答成功后，我们需要将对应问题的 answers 字段加 1，以保持数据的一致性。
+      question.answers += 1;
+      await question.save({ session });
 
-    // 创建回答后，我们还想记录这个操作，以便后续在用户的个人资料页展示用户的活动记录。
-    // 这里我们使用了 Next.js 的 after 函数，它接受一个异步函数作为参数，这个函数会在当前请求完成后执行。我们在这个函数里调用 createInteraction 来创建一条新的交互记录，记录用户创建了一个回答的操作。
-    after(async () => {
-      await createInteraction({
-        action: "post",
-        actionId: answer._id.toString(),
-        actionTarget: "answer",
-        authorId: userId as string,
-      });
+      // Notifications are user-visible business data, so they belong in the
+      // same transaction as the answer and answer count. The helper skips a
+      // notification when someone answers their own question.
+      await createNotification(
+        {
+          type: "answer_created",
+          recipientId: question.author,
+          actorId: userId,
+          questionId,
+          answerId: answer._id,
+        },
+        session,
+      );
+
+      await recordContentInteraction(
+        {
+          action: "post",
+          targetId: answer._id.toString(),
+          targetType: "answer",
+          userId,
+        },
+        session,
+      );
     });
 
-    await session.commitTransaction();
+    if (!createdAnswer) {
+      throw new Error("Answer transaction did not return a result");
+    }
+
     // 这里调用 revalidatePath 来重新验证问题详情页的缓存，以便新创建的回答能够立即显示在页面上。
     revalidatePath(ROUTES.QUESTION(questionId));
 
-    return { success: true, data: JSON.parse(JSON.stringify(answer)) };
+    return {
+      success: true,
+      data: JSON.parse(JSON.stringify(createdAnswer)),
+    };
   } catch (error) {
-    await session.abortTransaction();
     return handleError(error) as ErrorResponse;
   } finally {
     await session.endSession();
@@ -95,12 +131,10 @@ export async function getAnswers(
     questionId,
     page = 1,
     pageSize = 10,
-    query,
     filter,
-    sort,
+    highlightedAnswerId,
   } = validationResult.params;
   const skip = (page - 1) * pageSize;
-  const limit = pageSize;
 
   let sortCriteria: Record<string, mongoose.SortOrder> = {};
   switch (filter) {
@@ -120,26 +154,143 @@ export async function getAnswers(
 
   try {
     const totalAnswers = await Answer.countDocuments({ question: questionId });
-    const answers = await Answer.find({
-      question: questionId,
-    })
-      // populate 是 Mongoose 用来把 ObjectId 关联字段替换成真实文档数据的方法。
-      // 它能工作的前提是你的 schema 里有 ref
+    const highlightedAnswer = highlightedAnswerId
+      ? await Answer.findOne({
+          _id: highlightedAnswerId,
+          question: questionId,
+        }).populate("author", "_id name image")
+      : null;
+    const pageAnswers = await Answer.find({ question: questionId })
       .populate("author", "_id name image")
       .sort(sortCriteria)
       .skip(skip)
-      .limit(limit);
+      .limit(pageSize);
+    const highlightedId = highlightedAnswer?._id.toString();
+    const answers = highlightedAnswer
+      ? [
+          highlightedAnswer,
+          ...pageAnswers.filter(
+            (answer) => answer._id.toString() !== highlightedId,
+          ),
+        ]
+      : pageAnswers;
 
     return {
       success: true,
       data: {
         answers: JSON.parse(JSON.stringify(answers)),
-        isNext: skip + answers.length < totalAnswers,
+        // A target outside the normal page is an extra deep-link preview. It
+        // must not consume a slot or shift the regular pagination boundary.
+        isNext: skip + pageAnswers.length < totalAnswers,
         totalAnswers,
       },
     };
   } catch (error) {
     return handleError(error) as ErrorResponse;
+  }
+}
+
+export async function setAnswerAcceptance(
+  params: SetAnswerAcceptanceParams,
+): Promise<ActionResponse<{ acceptedAnswerId: string | null }>> {
+  const validationResult = await action({
+    params,
+    schema: SetAnswerAcceptanceSchema,
+    authorize: true,
+  });
+
+  if (validationResult instanceof Error) {
+    return handleError(validationResult) as ErrorResponse;
+  }
+
+  const { questionId, answerId, accepted } = validationResult.params;
+  const userId = validationResult.session?.user?.id;
+
+  if (!userId) {
+    return handleError(new UnauthorizedError()) as ErrorResponse;
+  }
+
+  const session = await mongoose.startSession();
+  let acceptedAnswerId: string | null = null;
+
+  try {
+    await session.withTransaction(async () => {
+      const question = await Question.findById(questionId).session(session);
+      if (!question) throw new NotFoundError("Question");
+
+      // 前端是否显示按钮不能作为权限依据，必须用数据库中的问题作者再校验一次。
+      if (question.author.toString() !== userId) {
+        throw new ForbiddenError(
+          "Only the question author can accept an answer",
+        );
+      }
+
+      // 同时使用回答 ID 和问题 ID 查询，防止把其他问题的回答采纳进来。
+      const answer = await Answer.findOne({
+        _id: answerId,
+        question: questionId,
+      })
+        .select("_id author")
+        .session(session);
+
+      if (!answer) throw new NotFoundError("Answer");
+
+      const currentAcceptedAnswerId =
+        question.acceptedAnswer?.toString() ?? null;
+
+      if (accepted) {
+        // 显式设置为目标回答，重复请求不会把它反向取消。
+        if (currentAcceptedAnswerId !== answerId) {
+          if (currentAcceptedAnswerId) {
+            await deleteNotificationEvent(
+              "answer_accepted",
+              currentAcceptedAnswerId,
+              session,
+            );
+          }
+          question.acceptedAnswer = answer._id;
+          await question.save({ session });
+        }
+
+        // Upsert by the deterministic event key, so retries repair a missing
+        // notification without creating duplicates.
+        await createNotification(
+          {
+            type: "answer_accepted",
+            recipientId: answer.author,
+            actorId: userId,
+            questionId,
+            answerId: answer._id,
+          },
+          session,
+        );
+        acceptedAnswerId = answerId;
+        return;
+      }
+
+      // 旧页面发出的取消请求只能取消它看到的那条回答，不能误清空新采纳的回答。
+      if (currentAcceptedAnswerId === answerId) {
+        question.acceptedAnswer = null;
+        await question.save({ session });
+        await deleteNotificationEvent(
+          "answer_accepted",
+          answerId,
+          session,
+        );
+        acceptedAnswerId = null;
+        return;
+      }
+
+      acceptedAnswerId = currentAcceptedAnswerId;
+    });
+
+    revalidatePath(ROUTES.QUESTION(questionId));
+
+    return { success: true, data: { acceptedAnswerId } };
+  } catch (error) {
+    return handleError(error) as ErrorResponse;
+  } finally {
+    await session.endSession();
   }
 }
 
@@ -160,40 +311,75 @@ export async function deleteAnswer(
 
   const { answerId } = validationResult.params;
   const { user } = validationResult.session!;
+  const userId = user?.id;
+
+  if (!userId) {
+    return handleError(new UnauthorizedError()) as ErrorResponse;
+  }
+
+  const session = await mongoose.startSession();
+  let questionId: string | null = null;
 
   try {
-    const answer = await Answer.findById(answerId);
-    if (!answer) throw new Error("Answer not found");
-    // 必须是自己的答案才能删除，不能删除别人的答案
-    if (answer.author.toString() !== user?.id) {
-      throw new Error("You're not allowed to delete this answer");
-    }
-    // 先把对应问题的 answers 字段减 1，以保持数据的一致性。
-    await Question.findByIdAndUpdate(
-      answer.question,
-      { $inc: { answers: -1 } },
-      { new: true },
-    );
+    await session.withTransaction(async () => {
+      const answer = await Answer.findById(answerId).session(session);
+      if (!answer) throw new NotFoundError("Answer");
 
-    // 然后删除这个答案，同时也删除与这个答案相关的投票记录，以保持数据的整洁。
-    await Vote.deleteMany({ id: answerId, type: "answer" });
-    await Answer.findByIdAndDelete(answerId);
+      // 必须是自己的答案才能删除，不能删除别人的答案。
+      if (answer.author.toString() !== userId) {
+        throw new ForbiddenError("You're not allowed to delete this answer");
+      }
 
-    // 删除答案后，我们还想记录这个操作，以便后续在用户的个人资料页展示用户的活动记录。
-    // 这里我们使用了 Next.js 的 after 函数，它接受一个异步函数作为参数，这个函数会在当前请求完成后执行。我们在这个函数里调用 createInteraction 来创建一条新的交互记录，记录用户删除了一个回答的操作。
-    after(async () => {
-      await createInteraction({
-        action: "delete",
-        actionId: answerId,
-        actionTarget: "answer",
-        authorId: user?.id as string,
-      });
+      const question = await Question.findById(answer.question).session(session);
+      if (!question) throw new NotFoundError("Question");
+
+      questionId = question._id.toString();
+      question.answers = Math.max(0, question.answers - 1);
+
+      // 如果删除的正是已采纳回答，在同一事务中清空引用，避免留下悬空 ID。
+      if (question.acceptedAnswer?.toString() === answerId) {
+        question.acceptedAnswer = null;
+      }
+
+      await question.save({ session });
+      await rollbackVoteInteractionsForTargets(
+        [
+          {
+            targetId: answerId,
+            targetType: "answer",
+            authorId: answer.author.toString(),
+          },
+        ],
+        session,
+      );
+      await Vote.deleteMany({ id: answerId, type: "answer" }).session(session);
+      await deleteNotificationsForAnswer(answerId, session);
+
+      const deletion = await Answer.deleteOne({ _id: answerId }).session(session);
+      if (deletion.deletedCount !== 1) {
+        throw new Error("Failed to delete answer");
+      }
+
+      await recordContentInteraction(
+        {
+          action: "delete",
+          targetId: answerId,
+          targetType: "answer",
+          userId,
+        },
+        session,
+      );
     });
 
-    revalidatePath(`/profile/${user?.id}`);
+    if (!questionId) throw new NotFoundError("Question");
+
+    revalidatePath(ROUTES.QUESTION(questionId));
+    revalidatePath(ROUTES.PROFILE(userId));
 
     return { success: true };
   } catch (error) {
     return handleError(error) as ErrorResponse;
+  } finally {
+    await session.endSession();
   }
 }

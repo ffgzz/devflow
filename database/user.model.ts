@@ -20,8 +20,14 @@ export interface IUserDoc extends IUser, Document {}
 const UserSchema = new Schema(
   {
     name: { type: String, required: true },
-    username: { type: String, required: true },
-    email: { type: String, required: true, unique: true },
+    username: { type: String, required: true, unique: true, trim: true },
+    email: {
+      type: String,
+      required: true,
+      unique: true,
+      trim: true,
+      lowercase: true,
+    },
     bio: { type: String },
     image: { type: String },
     location: { type: String },
@@ -39,6 +45,5 @@ const UserSchema = new Schema(
 // 通过调用 model("User", UserSchema)，我们创建了一个名为 User 的模型，这个模型将会对应 MongoDB 中的 users 集合（Mongoose 会自动将模型名称转换为小写并加上复数形式）。我们可以使用这个 User 模型来执行各种数据库操作，如创建、查询、更新和删除用户文档。
 const User = models.User || model<IUser>("User", UserSchema);
 // models 是 Mongoose 已经注册过的所有模型的缓存表，这里这样写是为了避免在开发过程中热重载时重复注册模型导致的错误。如果 models.User 已经存在，就直接使用它；否则，创建一个新的模型并注册到 Mongoose 中。
-console.log("User model file loaded");
 
 export default User;

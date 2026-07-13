@@ -45,7 +45,7 @@
 
   --breakpoint-xs: 420px;
 
-  --font-inter: var(--font-inter);
+  --font-inter: var(--font-sans);
   --font-space-grotesk: var(--font-space-grotesk);
 }
 

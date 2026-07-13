@@ -26,6 +26,7 @@ const LocalSearch = ({
   const router = useRouter();
   const searchParams = useSearchParams();
   const pathname = usePathname();
+  const searchParamsString = searchParams.toString();
   // 从 URL 中获取查询参数
   const query = searchParams.get("query") || "";
   // 这个状态可以用来控制输入框的值，初始值来自 URL 中的 query 参数，这样用户刷新页面时可以保持输入框中的内容。
@@ -38,10 +39,14 @@ const LocalSearch = ({
     if (pathname !== route) return;
     // 防抖，避免用户输入时频繁更新 URL，只有在用户停止输入一段时间后才更新 URL
     const delayDebounceFn = setTimeout(() => {
+      const currentParams = new URLSearchParams(searchParamsString);
+
+      if ((currentParams.get("query") || "") === searchQuery) return;
+
       if (searchQuery) {
         // 更新 URL 中的查询参数
         const newUrl = formUrlQuery({
-          params: searchParams.toString(),
+          params: searchParamsString,
           key: "query",
           value: searchQuery,
         });
@@ -51,7 +56,7 @@ const LocalSearch = ({
       } else {
         // 如果 searchQuery 为空，说明用户清空了输入框，这时我们应该从 URL 中移除 query 参数
         const newUrl = removeKeysFromQuery({
-          params: searchParams.toString(),
+          params: searchParamsString,
           keysToRemove: ["query"],
         });
         router.push(newUrl, { scroll: false });
@@ -61,7 +66,7 @@ const LocalSearch = ({
     // 在 React 的 useEffect 中，如果你设置了一个定时器（比如setTimeout），
     // 你应该在返回的函数中清除这个定时器，以避免内存泄漏或者在组件卸载后继续执行定时器的回调函数。
     return () => clearTimeout(delayDebounceFn);
-  }, [searchQuery]);
+  }, [pathname, route, router, searchParamsString, searchQuery]);
 
   return (
     <div

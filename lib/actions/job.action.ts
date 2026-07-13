@@ -1,15 +1,8 @@
-// 获取用户的地理位置
+// Server-side IP lookup reports the deployment server's location, not the
+// visitor's, and the previous provider only supported plaintext HTTP. Use an
+// explicit deployment default until users can choose a location themselves.
 export const fetchLocation = async () => {
-  try {
-    const response = await fetch("http://ip-api.com/json/?fields=country");
-    if (!response.ok) throw new Error("Failed to fetch location");
-
-    const location = await response.json();
-
-    return location.country || "United States";
-  } catch {
-    return "United States";
-  }
+  return process.env.DEFAULT_JOB_LOCATION?.trim() || "United States";
 };
 
 // 这个函数用来获取国家列表

@@ -1,4 +1,5 @@
 import { model, models, Schema, Types } from "mongoose";
+import type { Model } from "mongoose";
 
 export interface IVote {
   author: Types.ObjectId;
@@ -21,6 +22,12 @@ const VoteSchema = new Schema<IVote>(
   { timestamps: true },
 );
 
-const Vote = models.Vote || model<IVote>("Vote", VoteSchema);
+// A user can have at most one vote for the same question or answer. Besides
+// protecting the data model, this closes concurrent double-submit races.
+VoteSchema.index({ author: 1, id: 1, type: 1 }, { unique: true });
+
+const Vote =
+  (models.Vote as Model<IVote> | undefined) ??
+  model<IVote>("Vote", VoteSchema);
 
 export default Vote;

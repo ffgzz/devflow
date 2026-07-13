@@ -47,19 +47,16 @@ interface CreateAnswerParams {
 
 interface GetAnswersParams extends PaginatedSearchParams {
   questionId: string;
+  highlightedAnswerId?: string;
 }
 
-interface CreateVoteParmas {
+interface SetVoteParams {
   targetId: string; // 可以是问题ID或答案ID
   targetType: "question" | "answer";
-  voteType: "upvote" | "downvote";
-}
-
-interface UpdateVoteCountParams extends CreateVoteParmas {
-  change: 1 | -1; // 1表示增加，-1表示减少
+  voteType: "upvote" | "downvote" | null;
 }
 // 是否已经投过票的参数和返回类型
-type HasVotedParams = Pick<CreateVoteParmas, "targetId" | "targetType">;
+type HasVotedParams = Pick<SetVoteParams, "targetId" | "targetType">;
 interface HasVotedResponse {
   hasUpvoted: boolean;
   hasDownvoted: boolean;
@@ -97,29 +94,10 @@ interface DeleteAnswerParams {
   answerId: string;
 }
 
-interface CreateInteractionParams {
-  action:
-    | "view"
-    | "upvote"
-    | "downvote"
-    | "bookmark"
-    | "post"
-    | "edit"
-    | "delete";
-  actionId: string;
-  authorId: string;
-  actionTarget: "question" | "answer";
-}
-
-interface UpdateReputationParams {
-  // 这个写法是TS的内联类型导入
-  // 为什么这里不用顶部 import？
-  // 因为 types/action.d.ts 是一个全局声明文件。全局 .d.ts 文件里如果你在顶部写普通 import，这个文件会变成“模块文件”，
-  // 里面声明的 interface 可能就不再自动全局可用了
-  interaction: import("@/database/interaction.model").IInteractionDoc;
-  session: import("mongoose").ClientSession;
-  performerId: string;
-  authorId: string;
+interface SetAnswerAcceptanceParams {
+  questionId: string;
+  answerId: string;
+  accepted: boolean;
 }
 
 // 这个接口定义了推荐问题的参数类型，包含了用户ID、可选的查询字符串，以及分页参数（skip和limit）。
@@ -145,5 +123,5 @@ interface UpdateUserParams {
 
 interface GlobalSearchParams {
   query: string;
-  type: string | null;
+  type?: "question" | "answer" | "user" | "tag" | null;
 }

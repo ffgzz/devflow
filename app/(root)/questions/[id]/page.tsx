@@ -1,4 +1,5 @@
 import AllAnswers from "@/components/answers/AllAnswers";
+import { auth } from "@/auth";
 import TagCard from "@/components/cards/TagCard";
 import Preview from "@/components/editor/Preview";
 import AnswerForm from "@/components/forms/AnswerForm";
@@ -13,28 +14,37 @@ import { getQuestion, incrementViews } from "@/lib/actions/question.action";
 import { hasVoted } from "@/lib/actions/vote.action";
 import { formatNumber, getTimeStamp } from "@/lib/utils";
 import Link from "next/link";
-import { redirect } from "next/navigation";
+import { notFound } from "next/navigation";
 import { after } from "next/server";
 import { Suspense } from "react";
 
 const QuestionDetails = async ({ params, searchParams }: RouteParams) => {
   const { id } = await params;
-  const { page, pageSize, filter } = await searchParams;
+  const { page, pageSize, filter, answer } = await searchParams;
+  const parsedPage = Number(page);
+  const parsedPageSize = Number(pageSize);
+  const currentPage =
+    Number.isSafeInteger(parsedPage) && parsedPage > 0 ? parsedPage : 1;
+  const currentPageSize =
+    Number.isSafeInteger(parsedPageSize) && parsedPageSize > 0
+      ? Math.min(parsedPageSize, 100)
+      : 10;
+  const highlightedAnswerId = /^[0-9a-f]{24}$/iu.test(answer ?? "")
+    ? answer
+    : undefined;
   // 获取问题的详细信息，包括标题、内容、作者、标签、浏览量等
   const { success, data: question } = await getQuestion({ questionId: id });
 
-  // after 是 Next.js 提供的一个服务端函数
-  // 它的作用是：把一段工作安排到“响应发送完成之后”再执行。
-  // 这里我们用它来确保：在用户请求这个问题详情页的时候，我们先把页面内容正常加载并发送给用户，
-  // 等这一切都完成了之后，我们再去执行 incrementViews 这个函数来增加问题的浏览量。
+  // 如果没有成功获取到问题数据，或者问题不存在，我们就重定向到 404 页面
+  if (!success || !question) {
+    notFound();
+  }
+
+  // Only count views for a question that actually exists. The update runs after
+  // the response so it does not delay the question content.
   after(async () => {
     await incrementViews({ questionId: id });
   });
-
-  // 如果没有成功获取到问题数据，或者问题不存在，我们就重定向到 404 页面
-  if (!success || !question) {
-    return redirect("/404");
-  }
 
   // 获取问题的答案列表，这里我们默认获取第一页，每页10条，按照最新的顺序排序
   const {
@@ -43,9 +53,10 @@ const QuestionDetails = async ({ params, searchParams }: RouteParams) => {
     errors: AnswersErrors,
   } = await getAnswers({
     questionId: id,
-    page: Number(page) || 1,
-    pageSize: Number(pageSize) || 10,
+    page: currentPage,
+    pageSize: currentPageSize,
     filter,
+    highlightedAnswerId,
   });
   // 获取用户是否已经对这个问题投过票，这样我们就可以在界面上正确显示投票按钮的状态（已投票或未投票）
   const hasVotedPromise = hasVoted({
@@ -58,7 +69,18 @@ const QuestionDetails = async ({ params, searchParams }: RouteParams) => {
     questionId: id,
   });
 
-  const { answers, views, title, tags, author, content, createdAt } = question;
+  const session = await auth();
+  const {
+    answers,
+    views,
+    title,
+    tags,
+    author,
+    content,
+    createdAt,
+    acceptedAnswer,
+  } = question;
+  const canManageAcceptance = session?.user?.id === author._id;
 
   return (
     <>
@@ -66,13 +88,13 @@ const QuestionDetails = async ({ params, searchParams }: RouteParams) => {
         <div className="flex w-full flex-col-reverse justify-between">
           <div className="flex items-center justify-start gap-1">
             <UserAvatar
-              id="author-id"
-              name="Author Name"
+              id={author._id}
+              name={author.name || "Anonymous"}
               imageUrl={author.image}
               className="size-[22px]"
               falllbackClassName="text-[10px]"
             />
-            <Link href={ROUTES.PROFILE("author-id")}>
+            <Link href={ROUTES.PROFILE(author._id)}>
               <p className="paragraph-semibold text-dark300_light700">
                 {author.name}
               </p>
@@ -88,6 +110,7 @@ const QuestionDetails = async ({ params, searchParams }: RouteParams) => {
                 hasVotedPromise={hasVotedPromise}
                 targetId={id}
                 targetType="question"
+                targetAuthorId={author._id}
               />
             </Suspense>
 
@@ -146,12 +169,15 @@ const QuestionDetails = async ({ params, searchParams }: RouteParams) => {
       {/* 回答部分 */}
       <section className="my-5">
         <AllAnswers
-          page={Number(page) || 1}
+          page={currentPage}
           isNext={answersResult?.isNext || false}
           data={answersResult?.answers}
           success={areAnswersLoaded}
           errors={AnswersErrors}
           totalAnswers={answersResult?.totalAnswers || 0}
+          questionId={id}
+          acceptedAnswerId={acceptedAnswer ?? null}
+          canManageAcceptance={canManageAcceptance}
         />
       </section>
 
