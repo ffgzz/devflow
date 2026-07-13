@@ -25,6 +25,7 @@ import {
 } from "../http-errors";
 import { dbConnect } from "../mongoose";
 import { escapeRegex } from "../utils";
+import { buildQuestionSearchTerms } from "../search/question-search-terms.mjs";
 import {
   AskQuestionSchema,
   DeleteQuestionSchema,
@@ -65,7 +66,14 @@ export async function createQuestion(
     await session.withTransaction(async () => {
     // 创建问题
     const [question] = await Question.create(
-      [{ title, content, author: userId }],
+      [
+        {
+          title,
+          content,
+          author: userId,
+          searchTerms: buildQuestionSearchTerms(title, content),
+        },
+      ],
       {
         session,
       },
@@ -184,8 +192,8 @@ export async function editQuestion(
     if (question.title !== title || question.content !== content) {
       question.title = title;
       question.content = content;
-      await question.save({ session });
     }
+    question.searchTerms = buildQuestionSearchTerms(title, content);
 
     // 处理标签的添加和删除。我们先比较一下用户提交的 tags 和数据库里这个问题当前的 tags，找出需要添加的标签和需要删除的标签。
     const tagsToAdd = tags.filter(

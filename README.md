@@ -12,6 +12,7 @@ DevFlow 是一个面向开发者的问答社区。用户可以发布编程问题
 - 基于 IndexedDB 的问题/回答自动草稿、刷新恢复与账号隔离
 - 全局搜索、页内筛选、分页、社区和个人主页
 - 基于用户交互与标签的初步问题推荐
+- AI 提问分析台：流式质量评分、缺失信息、标签建议和可解释相似问题
 - 需登录且有额度限制的 AI 回答辅助
 - 职位搜索与国家/地区筛选（第三方 API 可选）
 - 数据库健康检查和可重复执行的演示数据脚本
@@ -108,6 +109,15 @@ pnpm migrate:week2 --apply
 
 迁移会清理无效、自投和重复 Vote，去重收藏，按 Vote 重算赞踩数，并创建 Vote/Collection 复合唯一索引。它不会重算历史声望，因为仅凭旧 Vote 无法可靠还原过去已经发放的声望。
 
+第三周的相似问题检索需要 MongoDB 全文与标签索引。和第二周一样，先只读检查，再显式应用：
+
+```bash
+pnpm migrate:week3
+pnpm migrate:week3 --apply
+```
+
+迁移会为历史问题补齐有界的内部检索词（包含 `C#` / `C++` 别名和中文双字词），并创建 `question_similarity_text` 和 `question_similarity_tags` 两个索引。正式库执行 `--apply` 时建议短暂停止写入；脚本也会检测并发修改，遇到冲突会在更改索引前安全停止。它只会自动升级本项目早期生成的同名纯文本索引；如果数据库已经存在其他全文索引或意外结构，脚本会停止并要求人工确认，不会自动删除未知索引。
+
 ### 4. 启动开发服务器
 
 ```bash
@@ -127,8 +137,10 @@ pnpm dev
 | `AI_API_KEY` | 否 | AI provider 服务端密钥 |
 | `MINIMAX_API_KEY` | 否 | 旧配置兼容，新环境优先使用 `AI_API_KEY` |
 | `AI_BASE_URL` / `AI_MODEL` | 否 | OpenAI-compatible 接口地址与模型 |
+| `AI_SUPPORTS_STRUCTURED_OUTPUTS` | 否 | Provider 明确支持 OpenAI JSON Schema 时设为 `true`，默认 `false` |
 | `AI_RATE_LIMIT_PER_HOUR` / `AI_RATE_LIMIT_PER_DAY` | 否 | 单用户 AI 小时/每日额度，默认 10/30 |
 | `AI_MAX_OUTPUT_TOKENS` | 否 | AI 单次最大输出，默认 1800 |
+| `AI_REQUEST_TIMEOUT_MS` | 否 | AI 请求总超时，默认 30000ms |
 | `RAPID_API_KEY` | 否 | 职位搜索 API |
 | `DEFAULT_JOB_LOCATION` | 否 | 职位页无筛选条件时使用的默认地区 |
 | `LOG_LEVEL` | 否 | 服务端日志级别，默认 `info` |
@@ -142,13 +154,15 @@ pnpm dev
 pnpm lint       # ESLint
 pnpm typecheck  # TypeScript，不产生文件
 pnpm check      # lint + typecheck
+pnpm check:week3-search # 检查中英混合分词、技术别名与输入上限
 pnpm build      # Next.js 生产构建（稳定的 webpack 路径）
 pnpm build:turbopack # 可选：验证 Turbopack 构建
 pnpm health     # 直接 ping MongoDB
 pnpm migrate:week2 # 只读审计旧数据库；加 --apply 才执行迁移
+pnpm migrate:week3 # 只读审计检索词与索引；加 --apply 才同步并创建
 ```
 
-GitHub Actions 会在 push 和 pull request 时执行依赖安装、lint、typecheck、MongoDB 健康检查、两次演示数据初始化、第二周数据迁移验证和生产构建。连续执行两次 seed 可以及时发现幂等性回归。CI 使用一个临时 MongoDB service container 和非生产占位配置，不会访问真实数据库、OAuth 或 AI 账号。
+GitHub Actions 会在 push 和 pull request 时执行依赖安装、lint、typecheck、MongoDB 健康检查、两次演示数据初始化、第二周数据迁移验证、第三周索引迁移验证和生产构建。连续执行两次 seed 可以及时发现幂等性回归。CI 使用一个临时 MongoDB service container 和非生产占位配置，不会访问真实数据库、OAuth 或 AI 账号。
 
 ## 安全注意事项
 
@@ -156,8 +170,9 @@ GitHub Actions 会在 push 和 pull request 时执行依赖安装、lint、typec
 - 不要将任何私密变量改成 `NEXT_PUBLIC_*`。
 - 演示账号只用于本地/预览环境；共享预览环境前应更换密码。
 - AI 路由需要登录，额度由 MongoDB 记录；多实例部署时不依赖单进程内存状态。
+- AI 提问分析使用有上限的 NDJSON 流；相似问题由本地索引和确定性评分完成，AI 不可用时仍可独立工作。
 - 采纳、回答计数、通知和删除清理共享 MongoDB 事务，避免出现半成功状态。
-- Vote/Collection/Notification 使用复合唯一索引防重；旧数据库上线前需先执行 `pnpm migrate:week2` 审计并应用迁移。
+- Vote/Collection/Notification 使用复合唯一索引防重；旧数据库上线前需先执行 `pnpm migrate:week2`，启用相似问题检索前需执行 `pnpm migrate:week3`。
 - 部署平台的健康检查可使用 `/api/health`，但不要在该响应中增加 URI、堆栈或密钥。
 
 ## 生产运行

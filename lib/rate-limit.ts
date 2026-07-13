@@ -15,6 +15,7 @@ export interface RateLimitResult {
   limit: number;
   remaining: number;
   retryAfterSeconds: number;
+  resetAt: Date;
 }
 
 const incrementBucket = async (key: string, expiresAt: Date) => {
@@ -71,5 +72,6 @@ export async function consumeRateLimit({
     limit,
     remaining: Math.max(0, limit - count),
     retryAfterSeconds: Math.max(1, Math.ceil((resetAt - now) / 1000)),
+    resetAt: new Date(resetAt),
   };
 }

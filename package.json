@@ -11,8 +11,10 @@
     "typecheck": "tsc --noEmit",
     "check": "pnpm lint && pnpm typecheck",
     "health": "node scripts/healthcheck.mjs",
+    "check:week3-search": "node scripts/check-week3-search.mjs",
     "seed": "node scripts/seed.mjs",
-    "migrate:week2": "node scripts/migrate-week2.mjs"
+    "migrate:week2": "node scripts/migrate-week2.mjs",
+    "migrate:week3": "node scripts/migrate-week3.mjs"
   },
   "dependencies": {
     "@ai-sdk/openai": "^3.0.66",

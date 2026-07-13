@@ -10,6 +10,7 @@ export interface IQuestion {
   answers: number; // 回答数量
   author: Schema.Types.ObjectId;
   acceptedAnswer?: Types.ObjectId | null;
+  searchTerms: string;
 }
 
 export interface IQuestionDoc extends IQuestion, Document {}
@@ -32,8 +33,30 @@ const QuestionSchema = new Schema<IQuestion>(
       ref: "Answer",
       default: null,
     },
+    // Internal normalized terms used only by the similarity text index.
+    searchTerms: {
+      type: String,
+      default: "",
+      maxlength: 8_000,
+      select: false,
+    },
   },
   { timestamps: true },
+);
+
+// Candidate retrieval for the question workbench. A dedicated migration
+// creates these indexes in production so deploys do not depend on autoIndex.
+QuestionSchema.index(
+  { title: "text", content: "text", searchTerms: "text" },
+  {
+    name: "question_similarity_text",
+    weights: { title: 6, content: 1, searchTerms: 1 },
+    default_language: "none",
+  },
+);
+QuestionSchema.index(
+  { tags: 1, createdAt: -1, _id: -1 },
+  { name: "question_similarity_tags" },
 );
 
 const Question =

@@ -1,0 +1,531 @@
+"use client";
+
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import ROUTES from "@/constants/routes";
+import { useQuestionAnalysis } from "@/hooks/useQuestionAnalysis";
+import {
+  QUESTION_ANALYSIS_DIMENSION_KEYS,
+  QUESTION_ANALYSIS_DIMENSION_LABELS,
+  type QuestionAnalysisPartial,
+} from "@/lib/ai/question-analysis-schema";
+import {
+  AlertTriangleIcon,
+  CheckCircle2Icon,
+  ExternalLinkIcon,
+  Loader2Icon,
+  MessageCircleIcon,
+  PlusIcon,
+  RefreshCwIcon,
+  SearchIcon,
+  SparklesIcon,
+  SquareIcon,
+  TagIcon,
+  ThumbsUpIcon,
+} from "lucide-react";
+import Link from "next/link";
+import { useId, useMemo } from "react";
+
+interface Props {
+  title: string;
+  content: string;
+  tags: string[];
+  questionId?: string;
+  onAddTag: (tag: string) => boolean;
+}
+
+const scoreLabel = (score: number) => {
+  if (score >= 85) return "Excellent";
+  if (score >= 70) return "Strong";
+  if (score >= 50) return "Needs more detail";
+  return "Early draft";
+};
+
+const ScoreRing = ({ score }: { score: number }) => (
+  <div className="flex shrink-0 flex-col items-center gap-2">
+    <div
+      role="meter"
+      aria-label={`Question quality score: ${score} out of 100`}
+      aria-valuemin={0}
+      aria-valuemax={100}
+      aria-valuenow={score}
+      className="flex-center size-24 rounded-full p-2"
+      style={{
+        background: `conic-gradient(#ff7000 ${score * 3.6}deg, rgba(133, 142, 173, 0.2) 0deg)`,
+      }}
+    >
+      <div className="background-light900_dark300 flex-center size-full flex-col rounded-full">
+        <strong className="text-dark200_light900 text-2xl">{score}</strong>
+        <span className="text-dark400_light700 text-xs">/ 100</span>
+      </div>
+    </div>
+    <span className="small-semibold text-dark300_light700">
+      {scoreLabel(score)}
+    </span>
+  </div>
+);
+
+const DimensionList = ({
+  analysis,
+}: {
+  analysis: QuestionAnalysisPartial;
+}) => {
+  const dimensions = QUESTION_ANALYSIS_DIMENSION_KEYS.flatMap((key) => {
+    const dimension = analysis.dimensions?.[key];
+    return dimension ? [{ key, dimension }] : [];
+  });
+
+  if (dimensions.length === 0) return null;
+
+  return (
+    <div className="grid gap-3 sm:grid-cols-2">
+      {dimensions.map(({ key, dimension }) => {
+        const value =
+          typeof dimension.score === "number"
+            ? Math.round(dimension.score)
+            : undefined;
+
+        return (
+          <div
+            key={key}
+            className="background-light800_dark300 rounded-lg border border-light-700 p-3 dark:border-dark-400"
+          >
+            <div className="mb-2 flex items-center justify-between gap-3">
+              <p className="small-semibold text-dark300_light700">
+                {QUESTION_ANALYSIS_DIMENSION_LABELS[key]}
+              </p>
+              <span className="small-semibold text-primary-500">
+                {value === undefined ? "..." : `${value}/20`}
+              </span>
+            </div>
+            <div
+              role="meter"
+              aria-label={QUESTION_ANALYSIS_DIMENSION_LABELS[key]}
+              aria-valuemin={0}
+              aria-valuemax={20}
+              aria-valuenow={value}
+              className="mb-2 h-1.5 overflow-hidden rounded-full bg-light-700/70 dark:bg-dark-400"
+            >
+              <div
+                className="h-full rounded-full bg-primary-500 transition-[width] motion-reduce:transition-none"
+                style={{ width: `${((value ?? 0) / 20) * 100}%` }}
+              />
+            </div>
+            <p className="small-regular text-dark400_light700">
+              {dimension.feedback ?? "Reviewing this dimension..."}
+            </p>
+          </div>
+        );
+      })}
+    </div>
+  );
+};
+
+const LoadingBlock = ({ label }: { label: string }) => (
+  <div className="text-dark400_light700 flex items-center gap-2 py-3 text-sm">
+    <Loader2Icon
+      aria-hidden="true"
+      className="size-4 animate-spin motion-reduce:animate-none"
+    />
+    <span>{label}</span>
+  </div>
+);
+
+const AIQuestionWorkbench = ({
+  title,
+  content,
+  tags,
+  questionId,
+  onAddTag,
+}: Props) => {
+  const headingId = useId();
+  const draft = useMemo(
+    () => ({ title, content, tags, questionId }),
+    [content, questionId, tags, title],
+  );
+  const {
+    analyze,
+    stopAnalysis,
+    acknowledgeSuggestedTag,
+    canAnalyze,
+    validationMessage,
+    status,
+    stage,
+    partial,
+    result,
+    quota,
+    error,
+    quotaBlockedUntil,
+    isAnalysisStale,
+    isSimilarityStale,
+    similarityStatus,
+    similarQuestions,
+    similarityError,
+  } = useQuestionAnalysis(draft);
+  const currentTags = new Set(tags.map((tag) => tag.trim().toLowerCase()));
+  const canApplySuggestions = status === "complete" && !isAnalysisStale;
+  const hasAIOutput = Boolean(partial || result);
+  const analyzeButtonLabel =
+    status === "streaming"
+      ? "Analyzing..."
+      : status === "idle"
+        ? "Analyze draft"
+        : "Analyze again";
+
+  return (
+    <section
+      aria-labelledby={headingId}
+      className="card-wrapper overflow-hidden rounded-xl border border-light-700 dark:border-dark-400"
+    >
+      <div className="border-b border-light-700 bg-linear-to-r from-primary-100/80 to-transparent p-5 dark:border-dark-400 dark:from-primary-500/10 sm:p-6">
+        <div className="flex flex-col justify-between gap-5 sm:flex-row sm:items-start">
+          <div className="max-w-2xl">
+            <div className="mb-2 flex flex-wrap items-center gap-2">
+              <SparklesIcon aria-hidden="true" className="size-5 text-primary-500" />
+              <h2 id={headingId} className="base-semibold text-dark200_light900">
+                AI Question Coach
+              </h2>
+              <Badge
+                variant="outline"
+                className="border-primary-500/30 text-primary-500"
+              >
+                AI beta
+              </Badge>
+            </div>
+            <p className="small-regular text-dark400_light700">
+              Get a live quality review, missing-detail checklist, tag ideas,
+              and possible duplicate questions. Nothing is changed unless you
+              choose it.
+            </p>
+          </div>
+
+          <div className="flex shrink-0 flex-wrap gap-2">
+            <Button
+              type="button"
+              onClick={() => void analyze()}
+              disabled={!canAnalyze || status === "streaming"}
+              className="primary-gradient min-h-11 px-4 text-white"
+            >
+              {status === "streaming" ? (
+                <Loader2Icon
+                  aria-hidden="true"
+                  className="animate-spin motion-reduce:animate-none"
+                />
+              ) : status === "idle" ? (
+                <SparklesIcon aria-hidden="true" />
+              ) : (
+                <RefreshCwIcon aria-hidden="true" />
+              )}
+              {analyzeButtonLabel}
+            </Button>
+            {status === "streaming" && (
+              <Button
+                type="button"
+                variant="outline"
+                onClick={stopAnalysis}
+                className="min-h-11 px-4"
+              >
+                <SquareIcon aria-hidden="true" className="fill-current" />
+                Stop AI
+              </Button>
+            )}
+          </div>
+        </div>
+
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
+          <p
+            role="status"
+            aria-live="polite"
+            className="small-medium text-dark300_light700"
+          >
+            {stage}
+          </p>
+          {quota && (
+            <p className="small-regular text-dark400_light700">
+              Today: {quota.dayRemaining}/{quota.dayLimit} AI requests left
+            </p>
+          )}
+        </div>
+        {status !== "streaming" && validationMessage && (
+          <p className="small-regular mt-2 text-dark400_light700">
+            {validationMessage}
+          </p>
+        )}
+      </div>
+
+      <div className="space-y-6 p-5 sm:p-6">
+        {isAnalysisStale && (
+          <div className="flex gap-3 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-950/30 dark:text-amber-200">
+            <AlertTriangleIcon aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
+            <p>
+              The title, details, or tags changed after this run. Analyze again
+              before applying its suggestions.
+            </p>
+          </div>
+        )}
+
+        {error && (
+          <div
+            role="alert"
+            className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/30 dark:text-red-300"
+          >
+            <p>{error.message}</p>
+            {quotaBlockedUntil && (
+              <p className="mt-1 font-medium">
+                You can analyze again after{" "}
+                {new Date(quotaBlockedUntil).toLocaleTimeString([], {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })}
+                .
+              </p>
+            )}
+          </div>
+        )}
+
+        {status === "streaming" && !hasAIOutput && (
+          <LoadingBlock label="Waiting for the first AI analysis event..." />
+        )}
+
+        {hasAIOutput && partial && (
+          <div className="space-y-5">
+            <div className="flex flex-col gap-5 sm:flex-row sm:items-center">
+              {result && <ScoreRing score={result.qualityScore} />}
+              <div className="min-w-0 flex-1">
+                <h3 className="base-semibold text-dark200_light900">
+                  Quality review
+                </h3>
+                <p className="small-regular text-dark400_light700 mt-1">
+                  {partial.summary ?? "Building a structured review..."}
+                </p>
+              </div>
+            </div>
+
+            <DimensionList analysis={partial} />
+
+            {partial.missingItems && partial.missingItems.length > 0 && (
+              <div>
+                <h3 className="base-semibold text-dark200_light900 mb-3">
+                  Details worth adding
+                </h3>
+                <div className="space-y-2">
+                  {partial.missingItems.flatMap((item, index) =>
+                    item?.label ? (
+                      <div
+                        key={`${item.id ?? "missing"}-${index}`}
+                        className="background-light800_dark300 rounded-lg p-3"
+                      >
+                        <div className="mb-1 flex flex-wrap items-center gap-2">
+                          <p className="small-semibold text-dark300_light700">
+                            {item.label}
+                          </p>
+                          {item.severity && (
+                            <Badge
+                              variant={
+                                item.severity === "required"
+                                  ? "destructive"
+                                  : "secondary"
+                              }
+                            >
+                              {item.severity}
+                            </Badge>
+                          )}
+                        </div>
+                        {item.reason && (
+                          <p className="small-regular text-dark400_light700">
+                            {item.reason}
+                          </p>
+                        )}
+                        {item.suggestion && (
+                          <p className="small-medium text-dark300_light700 mt-1">
+                            Try: {item.suggestion}
+                          </p>
+                        )}
+                      </div>
+                    ) : (
+                      []
+                    ),
+                  )}
+                </div>
+              </div>
+            )}
+
+            {result && result.tagSuggestions.length > 0 && (
+              <div>
+                <div className="mb-3 flex items-center gap-2">
+                  <TagIcon aria-hidden="true" className="size-4 text-primary-500" />
+                  <h3 className="base-semibold text-dark200_light900">
+                    Suggested tags
+                  </h3>
+                </div>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {result.tagSuggestions.map((suggestion) => {
+                    const isAdded = currentTags.has(
+                      suggestion.name.toLowerCase(),
+                    );
+                    const isDisabled =
+                      isAdded || tags.length >= 3 || !canApplySuggestions;
+
+                    return (
+                      <div
+                        key={suggestion.name}
+                        className="background-light800_dark300 rounded-lg border border-light-700 p-3 dark:border-dark-400"
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            disabled={isDisabled}
+                            aria-label={
+                              isAdded
+                                ? `${suggestion.name} is already added`
+                                : `Add tag ${suggestion.name}`
+                            }
+                            onClick={() => {
+                              if (onAddTag(suggestion.name)) {
+                                acknowledgeSuggestedTag(suggestion.name);
+                              }
+                            }}
+                            className="min-h-11"
+                          >
+                            {isAdded ? (
+                              <CheckCircle2Icon aria-hidden="true" />
+                            ) : (
+                              <PlusIcon aria-hidden="true" />
+                            )}
+                            {suggestion.name}
+                          </Button>
+                          <Badge variant="secondary">
+                            {Math.round(suggestion.confidence * 100)}%
+                          </Badge>
+                        </div>
+                        <p className="small-regular text-dark400_light700 mt-2">
+                          {suggestion.reason}
+                        </p>
+                      </div>
+                    );
+                  })}
+                </div>
+                {tags.length >= 3 && (
+                  <p className="small-regular text-dark400_light700 mt-2">
+                    Remove a tag first if you want to use another suggestion.
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        <div className="border-t border-light-700 pt-5 dark:border-dark-400">
+          <div className="mb-3 flex items-center gap-2">
+            <SearchIcon aria-hidden="true" className="size-4 text-primary-500" />
+            <h3 className="base-semibold text-dark200_light900">
+              Possibly similar questions
+            </h3>
+          </div>
+
+          {isSimilarityStale && (
+            <div className="mb-3 flex gap-3 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-950/30 dark:text-amber-200">
+              <AlertTriangleIcon
+                aria-hidden="true"
+                className="mt-0.5 size-4 shrink-0"
+              />
+              <p>
+                This similarity check uses an earlier draft or tag set. Analyze
+                again to refresh possible duplicates.
+              </p>
+            </div>
+          )}
+
+          {!isSimilarityStale && similarityStatus === "idle" && (
+            <p className="small-regular text-dark400_light700">
+              Similar questions are checked when you analyze the draft.
+            </p>
+          )}
+          {!isSimilarityStale && similarityStatus === "loading" && (
+            <LoadingBlock label="Checking existing questions locally..." />
+          )}
+          {!isSimilarityStale &&
+            similarityStatus === "error" &&
+            similarityError && (
+              <p
+                role="alert"
+                className="text-sm text-red-600 dark:text-red-300"
+              >
+                {similarityError}
+              </p>
+            )}
+          {!isSimilarityStale &&
+            similarityStatus === "complete" &&
+            similarQuestions.length === 0 && (
+              <p className="small-regular text-dark400_light700">
+                No strong match was found. This does not block you from posting.
+              </p>
+            )}
+          {!isSimilarityStale && similarQuestions.length > 0 && (
+            <div className="space-y-3">
+              {similarQuestions.map((question) => (
+                <article
+                  key={question.id}
+                  className="background-light800_dark300 rounded-lg border border-light-700 p-4 dark:border-dark-400"
+                >
+                  <div className="flex flex-col justify-between gap-3 sm:flex-row">
+                    <div className="min-w-0">
+                      <Link
+                        href={ROUTES.QUESTION(question.id)}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="small-semibold text-dark200_light900 hover:text-primary-500"
+                      >
+                        {question.title}
+                        <span className="sr-only"> (opens in a new tab)</span>
+                        <ExternalLinkIcon
+                          aria-hidden="true"
+                          className="ml-1 inline size-3.5"
+                        />
+                      </Link>
+                      <div className="mt-2 flex flex-wrap gap-1.5">
+                        {question.reasons.map((reason) => (
+                          <Badge key={reason.type} variant="secondary">
+                            {reason.label}
+                            {reason.values.length > 0
+                              ? `: ${reason.values.join(", ")}`
+                              : ""}
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+                    <Badge
+                      variant="outline"
+                      className="h-fit shrink-0 border-primary-500/30 text-primary-500"
+                    >
+                      {question.score}% match
+                    </Badge>
+                  </div>
+                  <div className="text-dark400_light700 mt-3 flex flex-wrap gap-4 text-xs">
+                    <span className="flex items-center gap-1">
+                      <MessageCircleIcon aria-hidden="true" className="size-3.5" />
+                      {question.answers} answers
+                    </span>
+                    <span className="flex items-center gap-1">
+                      <ThumbsUpIcon aria-hidden="true" className="size-3.5" />
+                      {question.upvotes} votes
+                    </span>
+                    {question.hasAcceptedAnswer && (
+                      <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
+                        <CheckCircle2Icon aria-hidden="true" className="size-3.5" />
+                        Solved
+                      </span>
+                    )}
+                  </div>
+                </article>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </section>
+  );
+};
+
+export default AIQuestionWorkbench;

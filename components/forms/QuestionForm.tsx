@@ -13,6 +13,7 @@ import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import {
   KeyboardEvent,
+  useCallback,
   useEffect,
   useMemo,
   useRef,
@@ -28,6 +29,7 @@ import {
 import { toast } from "sonner";
 import z from "zod";
 import TagCard from "../cards/TagCard";
+import AIQuestionWorkbench from "../questions/AIQuestionWorkbench";
 import DraftStatus from "./DraftStatus";
 import { Button } from "../ui/button";
 import {
@@ -169,47 +171,62 @@ const QuestionForm = ({ question, isEdit = false }: Params) => {
     setEditorRevision((revision) => revision + 1);
   };
 
-  const handleInputKeyDown = (
-    e: KeyboardEvent<HTMLInputElement>,
-    field: ControllerRenderProps<
-      { title: string; content: string; tags: string[] },
-      "tags"
-    >,
-  ) => {
-    // 在表单中按下 enter 添加到 tags 中，而不是提交表单
-    if (e.key === "Enter") {
-      // Input 的默认行为是在按下 Enter 键时提交表单。通过调用 e.preventDefault()，我们可以阻止这个默认行为，从而允许用户在输入标签时按 Enter 键来添加标签，而不是提交整个表单。
-      e.preventDefault();
-      const tagInput = e.currentTarget.value.trim();
+  const handleTagAdd = useCallback(
+    (rawTag: string) => {
+      const tag = rawTag.normalize("NFKC").trim();
+      const currentTags = form.getValues("tags");
 
-      if (field.value.length >= 3) {
+      if (!tag) {
+        form.setError("tags", {
+          type: "manual",
+          message: "Tag cannot be empty.",
+        });
+        return false;
+      }
+      if (tag.length > 30) {
+        form.setError("tags", {
+          type: "manual",
+          message: "Tag cannot exceed 30 characters.",
+        });
+        return false;
+      }
+      if (currentTags.length >= 3) {
         form.setError("tags", {
           type: "manual",
           message: "You can add up to 3 tags.",
         });
-      } else if (
-        tagInput &&
-        tagInput.length < 15 &&
-        !field.value.includes(tagInput)
+        return false;
+      }
+      if (
+        currentTags.some(
+          (currentTag) => currentTag.toLowerCase() === tag.toLowerCase(),
+        )
       ) {
-        form.setValue("tags", [...field.value, tagInput], {
-          shouldDirty: true,
-          shouldValidate: true,
+        form.setError("tags", {
+          type: "manual",
+          message: "Tag already added.",
         });
+        return false;
+      }
+
+      form.setValue("tags", [...currentTags, tag], {
+        shouldDirty: true,
+        shouldValidate: true,
+      });
+      form.clearErrors("tags");
+      return true;
+    },
+    [form],
+  );
+
+  const handleInputKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
+    // 在表单中按下 enter 添加到 tags 中，而不是提交表单
+    if (e.key === "Enter") {
+      // Input 的默认行为是在按下 Enter 键时提交表单。通过调用 e.preventDefault()，我们可以阻止这个默认行为，从而允许用户在输入标签时按 Enter 键来添加标签，而不是提交整个表单。
+      e.preventDefault();
+      if (handleTagAdd(e.currentTarget.value)) {
         // 在用户按下 Enter 键并成功添加标签后，我们需要清空输入框，以便用户可以继续输入下一个标签。
         setTagInput("");
-        // 清除标签相关的错误信息（如果有的话），确保用户在添加标签后不会看到错误提示。
-        form.clearErrors("tags");
-      } else if (tagInput.length >= 15) {
-        form.setError("tags", {
-          type: "manual",
-          message: "Tag must be less than 15 characters",
-        });
-      } else if (field.value.includes(tagInput)) {
-        form.setError("tags", {
-          type: "manual",
-          message: "Tag already added",
-        });
       }
     }
   };
@@ -363,6 +380,15 @@ const QuestionForm = ({ question, isEdit = false }: Params) => {
           )}
         />
 
+        <AIQuestionWorkbench
+          key={`${session.data?.user?.id ?? session.status}:${question?._id ?? "new"}`}
+          title={draftData.title}
+          content={draftData.content}
+          tags={draftData.tags}
+          questionId={isEdit ? question?._id : undefined}
+          onAddTag={handleTagAdd}
+        />
+
         <Controller
           control={form.control}
           name="tags"
@@ -382,9 +408,7 @@ const QuestionForm = ({ question, isEdit = false }: Params) => {
                     onChange={(event) => setTagInput(event.target.value)}
                     className="paragraph-regular background-light700_dark300 light-border-2 text-dark300_light700 no-focus min-h-[56px] border"
                     placeholder="Add tags..."
-                    onKeyDown={(e) => {
-                      handleInputKeyDown(e, field);
-                    }}
+                    onKeyDown={handleInputKeyDown}
                   />
                   {field.value.length > 0 && (
                     <div className="flex-start mt-2.5 flex-wrap gap-2.5">

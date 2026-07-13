@@ -68,6 +68,9 @@ jobs:
       - name: Type-check
         run: pnpm typecheck
 
+      - name: Check Week 3 search terms
+        run: pnpm check:week3-search
+
       - name: Check MongoDB
         run: pnpm health
 
@@ -80,6 +83,9 @@ jobs:
 
       - name: Verify Week 2 data migration
         run: pnpm migrate:week2 --apply
+
+      - name: Verify Week 3 search indexes
+        run: pnpm migrate:week3 --apply
 
       - name: Build
         run: pnpm build

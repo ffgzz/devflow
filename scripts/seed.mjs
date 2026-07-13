@@ -1,5 +1,6 @@
 import bcrypt from "bcryptjs";
 import mongoose from "mongoose";
+import { buildQuestionSearchTerms } from "../lib/search/question-search-terms.mjs";
 import {
   loadProjectEnv,
   requireEnv,
@@ -309,6 +310,10 @@ async function seedDatabase() {
           author: author._id,
           title: question.title,
           content: question.content,
+          searchTerms: buildQuestionSearchTerms(
+            question.title,
+            question.content,
+          ),
           tags: questionTags,
           updatedAt: now,
         },
