@@ -25,10 +25,11 @@ async function action<T>({
   schema,
   authorize = false,
 }: ActionOptions<T>) {
+  let parsedParams = params;
   if (schema && params) {
     try {
       // 使用 Zod 的 parse 方法来验证 params 是否符合 schema 定义的结构和类型。如果验证失败，parse 方法会抛出一个 ZodError，我们在 catch 块里捕获这个错误并转换成一个 ValidationError 返回。
-      schema.parse(params);
+      parsedParams = schema.parse(params);
     } catch (error) {
       if (error instanceof ZodError) {
         return new ValidationError(
@@ -53,7 +54,7 @@ async function action<T>({
   // 最后我们调用 dbConnect 函数来连接数据库。这个函数是我们在 mongoose.ts 里定义的一个函数，它会检查当前是否已经有一个数据库连接，如果没有的话就创建一个新的连接。通过调用这个函数，我们确保在执行后续的数据库操作之前，已经成功连接到了数据库。
   await dbConnect();
 
-  return { params, session };
+  return { params: parsedParams, session };
 }
 
 export default action;

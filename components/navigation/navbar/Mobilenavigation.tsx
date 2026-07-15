@@ -49,7 +49,7 @@ const Mobilenavigation = async () => {
         </Link>
         <div className="no-scrollbar flex flex-col flex-1 justify-between overflow-y-auto">
           <section className="flex h-full flex-col gap-6 pt-16">
-            <NavLinks isMobileNav />
+            <NavLinks isMobileNav userId={userId} />
           </section>
 
           {/* 底部的按钮 */}

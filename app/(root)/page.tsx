@@ -1,46 +1,48 @@
-import QuestionCard from "@/components/cards/QuestionCard";
-import DataRenderer from "@/components/DataRenderer";
+import { auth } from "@/auth";
 import CommonFilter from "@/components/filters/CommonFilter";
 import HomeFilter from "@/components/filters/HomeFilter";
-import Pagination from "@/components/Pagination";
+import QuestionFeed from "@/components/questions/QuestionFeed";
 import LocalSearch from "@/components/search/LocalSearch";
 import { Button } from "@/components/ui/button";
 import { HomePageFilters } from "@/constants/filters";
 import ROUTES from "@/constants/routes";
-import { EMPTY_QUESTION } from "@/constants/states";
-import { getQuestions } from "@/lib/actions/question.action";
+import { getQuestionFeed } from "@/lib/dal/question-feed";
+import {
+  QUESTION_FEED_FILTERS,
+  type QuestionFeedFilter,
+} from "@/lib/recommendation/types";
 import Link from "next/link";
 
 interface SearchParams {
-  searchParams: Promise<{ [key: string]: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }
 
 export default async function Home({ searchParams }: SearchParams) {
-  const { page, pageSize, query, filter } = await searchParams;
-
-  const { success, data, errors } = await getQuestions({
-    page: Number(page) || 1,
-    pageSize: Number(pageSize) || 10,
-    query,
+  const params = await searchParams;
+  const rawQuery = Array.isArray(params.query) ? params.query[0] : params.query;
+  const rawFilter = Array.isArray(params.filter)
+    ? params.filter[0]
+    : params.filter;
+  const filter: QuestionFeedFilter = QUESTION_FEED_FILTERS.includes(
+    rawFilter as QuestionFeedFilter,
+  )
+    ? (rawFilter as QuestionFeedFilter)
+    : "newest";
+  const query = rawQuery?.trim().slice(0, 100) ?? "";
+  const session = await auth();
+  const initialPage = await getQuestionFeed({
+    userId: session?.user?.id,
     filter,
+    query,
+    limit: 10,
   });
-  const { questions, isNext } = data || {};
-
-  // 根据 query 和 filter 来过滤问题列表
-  // const filteredQuestions = questions?.filter((question) =>
-  //   question.title.toLowerCase().includes(query?.toLowerCase()) && filter
-  //     ? question.tags[0].name?.toLowerCase() === filter?.toLowerCase()
-  //     : true,
-  // );
 
   return (
     <>
-      <section
-        className="w-full flex flex-col-reverse sm:flex-row sm:items-center
-        justify-between gap-4"
-      >
-        <h1 className="h1-bold text-dark100_light900">All Questions</h1>
-        {/* asChild 是为了让 Link 拥有 Button 样式，同时保持最终 HTML 语义是 <a> */}
+      <section className="flex w-full flex-col-reverse justify-between gap-4 sm:flex-row sm:items-center">
+        <h1 className="h1-bold text-dark100_light900">
+          {filter === "recommended" ? "For You" : "All Questions"}
+        </h1>
         <Button
           asChild
           className="primary-gradient min-h-[46px] px-4 py-3 text-light-900!"
@@ -61,49 +63,19 @@ export default async function Home({ searchParams }: SearchParams) {
           filters={HomePageFilters}
           otherClasses="min-h-[56px] sm:min-w-[170px]"
           containerClasses="hidden max-md:flex"
+          fallbackValue="newest"
         />
       </section>
 
-      {/* 用于筛选问题 */}
       <HomeFilter />
 
-      {/* 可复用的数据渲染器，既可以渲染数据，也可以展示空状态和错误状态 */}
-      <DataRenderer
-        success={success}
-        error={errors}
-        data={questions}
-        empty={EMPTY_QUESTION}
-        render={(questions) => (
-          <div className="mt-10 flex w-full flex-col gap-6">
-            {questions.map((question) => (
-              <QuestionCard key={question._id} question={question} />
-            ))}
-          </div>
-        )}
+      <QuestionFeed
+        key={`${filter}:${query}`}
+        initialPage={initialPage}
+        filter={filter}
+        query={query}
+        canPersonalize={Boolean(session?.user?.id)}
       />
-
-      <Pagination page={page} isNext={isNext || false} />
-
-      {/* 获取成功才显示问题列表
-      {success ? ( 
-        <div className="mt-10 flex w-full flex-col gap-6">
-          {questions && questions.length > 0 ? (
-            questions.map((question) => (
-              <QuestionCard key={question._id} question={question} />
-            ))
-          ) : (
-            <div className="mt-10 flex items-center justify-center w-full">
-              <p className="text-dark400_light700">No questions found.</p>
-            </div>
-          )}
-        </div>
-      ) : (
-        <div className="mt-10 flex justify-center items-center w-full">
-          <p className="text-dark400_light700">
-            {errors?.message || "An error occurred while fetching questions."}
-          </p> 
-        </div>
-      )} */}
     </>
   );
 }

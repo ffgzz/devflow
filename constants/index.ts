@@ -20,6 +20,11 @@ export const sidebarLinks = [
     label: "Find Jobs",
   },
   {
+    imgURL: "/icons/computer.svg",
+    route: "/playground",
+    label: "Code Lab",
+  },
+  {
     imgURL: "/icons/tag.svg",
     route: "/tags",
     label: "Tags",

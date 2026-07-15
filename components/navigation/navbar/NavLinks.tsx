@@ -25,15 +25,16 @@ const NavLinks = ({
         const isActive =
           (pathname.includes(item.route) && item.route.length > 1) ||
           pathname === item.route;
+        let resolvedRoute = item.route;
         if (item.route === "/profile") {
           // 个人资料页的链接需要特殊处理，因为它可能包含动态参数（例如 "/profile/[username]"），我们需要检查当前路径是否以 "/profile" 开头。
-          if (userId) item.route = `/profile/${userId}`;
+          if (userId) resolvedRoute = `/profile/${userId}`;
           else return null;
         }
 
         const LinkComponent = (
           <Link
-            href={item.route}
+            href={resolvedRoute}
             key={item.label}
             className={cn(
               isActive
@@ -64,11 +65,11 @@ const NavLinks = ({
         // 如果是移动导航，我们需要在点击链接后关闭抽屉，所以我们将 Link 组件包裹在 SheetClose 组件中。
         // 对于桌面导航，我们直接返回 Link 组件。
         return isMobileNav ? (
-          <SheetClose asChild key={item.route}>
+          <SheetClose asChild key={resolvedRoute}>
             {LinkComponent}
           </SheetClose>
         ) : (
-          <React.Fragment key={item.route}>{LinkComponent}</React.Fragment>
+          <React.Fragment key={resolvedRoute}>{LinkComponent}</React.Fragment>
         );
       })}
     </>

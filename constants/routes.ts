@@ -11,6 +11,7 @@ const ROUTES = {
   COMMUNITY: "/community",
   TAGS: "/tags",
   JOBS: "/jobs",
+  PLAYGROUND: "/playground",
   SIGN_IN_WITH_OAUTH: "/auth/signin-with-oauth",
 };
 

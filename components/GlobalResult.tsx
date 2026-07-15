@@ -2,73 +2,92 @@
 
 import { Loader2Icon } from "lucide-react";
 import Image from "next/image";
-import Link from "next/link";
-import { useSearchParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef } from "react";
 
-import { globalSearch } from "@/lib/actions/general.action";
+import type {
+  GlobalSearchItem,
+  GlobalSearchType,
+} from "@/lib/dal/global-search";
 
-import GlobalFilter from "./filters/GlobalFilter";
+interface Props {
+  listboxId: string;
+  query: string;
+  type: GlobalSearchType | null;
+  items: GlobalSearchItem[];
+  isLoading: boolean;
+  error: string | null;
+  activeIndex: number;
+  onTypeChange: (type: GlobalSearchType | null) => void;
+  onActiveIndexChange: (index: number) => void;
+  onSelect: (item: GlobalSearchItem) => void;
+}
 
-const renderLink = (type: GlobalSearchedItem["type"], id: string) => {
-  switch (type) {
-    case "question":
-      return `/questions/${id}`;
-    case "answer":
-      return `/questions/${id}`;
-    case "user":
-      return `/profile/${id}`;
-    case "tag":
-      return `/tags/${id}`;
-    default:
-      return "/";
-  }
-};
+const SEARCH_TYPES: Array<{
+  label: string;
+  value: GlobalSearchType | null;
+}> = [
+  { label: "All", value: null },
+  { label: "Question", value: "question" },
+  { label: "Answer", value: "answer" },
+  { label: "User", value: "user" },
+  { label: "Tag", value: "tag" },
+];
 
-const GlobalResult = () => {
-  const searchParams = useSearchParams();
+const GlobalResult = ({
+  listboxId,
+  query,
+  type,
+  items,
+  isLoading,
+  error,
+  activeIndex,
+  onTypeChange,
+  onActiveIndexChange,
+  onSelect,
+}: Props) => {
+  const listboxRef = useRef<HTMLDivElement>(null);
 
-  const [result, setResult] = useState<GlobalSearchedItem[]>([]);
-  const [isLoading, setLoading] = useState(true);
-
-  const global = searchParams.get("global");
-  const typeParam = searchParams.get("type");
-  const type = ["question", "answer", "user", "tag"].includes(
-    typeParam ?? "",
-  )
-    ? (typeParam as "question" | "answer" | "user" | "tag")
-    : null;
-
-  // 这个 useEffect 用于监听 global 和 type 查询参数的变化，并根据这些参数执行全局搜索。
-  // 当 global 参数存在时，组件会调用 globalSearch 函数来获取搜索结果，并更新 result 状态以显示这些结果。同时，组件还管理 isLoading 状态来显示加载指示器，直到搜索结果返回或发生错误。这个机制确保了用户在输入搜索内容或更改搜索类型时能够及时看到相应的搜索结果。
   useEffect(() => {
-    const fetchResult = async () => {
-      // 在执行搜索之前，组件会先清空当前的搜索结果并设置加载状态为 true，以便在等待搜索结果返回时显示加载指示器。
-      setResult([]);
-      setLoading(true);
+    const selectedOption = listboxRef.current?.querySelector(
+      '[aria-selected="true"]',
+    );
+    selectedOption?.scrollIntoView({ block: "nearest" });
+  }, [activeIndex]);
 
-      try {
-        const res = await globalSearch({
-          query: global as string,
-          type,
-        });
-
-        setResult(res.success ? res.data || [] : []);
-      } catch {
-        setResult([]);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    if (global) {
-      fetchResult();
-    }
-  }, [global, type]);
+  const status = (() => {
+    if (query.length < 2) return "Type at least 2 characters to search.";
+    if (error) return error;
+    if (!isLoading && items.length === 0) return "Oops, no results found";
+    return null;
+  })();
 
   return (
     <div className="absolute top-full z-10 mt-3 w-full rounded-xl bg-light-800 py-5 shadow-sm dark:bg-dark-400">
-      <GlobalFilter />
+      <div className="flex items-center gap-3 overflow-x-auto px-5 pb-1">
+        <p className="text-dark400_light900 body-medium shrink-0">Type:</p>
+        <div className="flex gap-2" aria-label="Search result type">
+          {SEARCH_TYPES.map((filter) => {
+            const selected = type === filter.value;
+
+            return (
+              <button
+                type="button"
+                key={filter.label}
+                aria-pressed={selected}
+                className={`light-border-2 small-medium shrink-0 rounded-2xl px-4 py-2 capitalize ${
+                  selected
+                    ? "bg-primary-500 text-light-900"
+                    : "bg-light-700 text-dark-400 hover:text-primary-500 dark:bg-dark-500 dark:text-light-800 dark:hover:text-primary-500"
+                }`}
+                onClick={() => onTypeChange(filter.value)}
+              >
+                {filter.label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
       <div className="my-5 h-px bg-light-700/50 dark:bg-dark-500/50" />
 
       <div className="space-y-5">
@@ -77,49 +96,76 @@ const GlobalResult = () => {
         </p>
 
         {isLoading ? (
-          <div className="flex-center flex-col px-5">
-            <Loader2Icon className="my-2 size-10 animate-spin text-primary-500" />
+          <div className="flex-center flex-col px-5" role="status">
+            <Loader2Icon
+              className="my-2 size-10 animate-spin text-primary-500"
+              aria-hidden="true"
+            />
             <p className="text-dark200_light800 body-regular">
               Browsing the whole database...
             </p>
           </div>
+        ) : status ? (
+          <p
+            className="text-dark200_light800 body-regular px-5 py-2.5 text-center"
+            role={error ? "alert" : "status"}
+          >
+            {status}
+          </p>
         ) : (
-          <div className="flex flex-col gap-2">
-            {result.length > 0 ? (
-              result.map((item, index) => (
-                <Link
-                  href={renderLink(item.type, item.id)}
-                  key={item.type + item.id + index}
-                  className="flex w-full cursor-pointer items-start gap-3 px-5 py-2.5 hover:bg-light-700/50 dark:hover:bg-dark-500/50"
+          <div
+            ref={listboxRef}
+            id={listboxId}
+            role="listbox"
+            aria-label="Global search results"
+            className="flex max-h-[390px] flex-col gap-2 overflow-y-auto"
+          >
+            {items.map((item, index) => {
+              const active = index === activeIndex;
+
+              return (
+                <button
+                  type="button"
+                  id={`${listboxId}-option-${index}`}
+                  role="option"
+                  aria-selected={active}
+                  key={`${item.type}-${item.id}`}
+                  className={`flex w-full cursor-pointer items-start gap-3 px-5 py-2.5 text-left ${
+                    active
+                      ? "bg-light-700/70 dark:bg-dark-500/70"
+                      : "hover:bg-light-700/50 dark:hover:bg-dark-500/50"
+                  }`}
+                  onMouseMove={() => onActiveIndexChange(index)}
+                  onClick={() => onSelect(item)}
                 >
                   <Image
                     src="/icons/tag.svg"
-                    alt="tags"
+                    alt=""
                     width={18}
                     height={18}
+                    aria-hidden="true"
                     className="invert-colors mt-1 object-contain"
                   />
 
-                  <div className="flex flex-col">
-                    <p className="body-medium text-dark200_light800 line-clamp-1">
+                  <span className="min-w-0 flex-1">
+                    <span className="body-medium text-dark200_light800 line-clamp-2 block">
                       {item.title}
-                    </p>
-                    <p className="text-light400_light500 small-medium mt-1 font-bold capitalize">
-                      {item.type}
-                    </p>
-                  </div>
-                </Link>
-              ))
-            ) : (
-              <div className="flex-center flex-col px-5">
-                <p className="text-dark200_light800 body-regular px-5 py-2.5">
-                  Oops, no results found
-                </p>
-              </div>
-            )}
+                    </span>
+                    <span className="text-light400_light500 small-medium mt-1 block font-bold">
+                      <span className="capitalize">{item.type}</span>
+                      {item.subtitle ? ` · ${item.subtitle}` : ""}
+                    </span>
+                  </span>
+                </button>
+              );
+            })}
           </div>
         )}
       </div>
+
+      <p className="text-light400_light500 small-regular mt-4 px-5">
+        Use ↑ ↓ to navigate, Enter to open, Esc to close
+      </p>
     </div>
   );
 };

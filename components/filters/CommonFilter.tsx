@@ -22,12 +22,14 @@ interface Props {
   filters: Filter[];
   otherClasses?: string;
   containerClasses?: string;
+  fallbackValue?: string;
 }
 
 const CommonFilter = ({
   filters,
   otherClasses = "",
   containerClasses = "",
+  fallbackValue,
 }: Props) => {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -41,6 +43,7 @@ const CommonFilter = ({
       params: searchParams.toString(),
       key: "filter",
       value,
+      keysToRemove: ["page", "cursor"],
     });
     // 使用 router.push 来导航到新的 URL，同时保持页面滚动位置不变
     router.push(newUrl, { scroll: false });
@@ -50,7 +53,7 @@ const CommonFilter = ({
     <div className={containerClasses}>
       <Select
         onValueChange={handleUpdateParams}
-        defaultValue={paramsFilter || undefined}
+        value={paramsFilter || fallbackValue || undefined}
       >
         <SelectTrigger
           className={cn(

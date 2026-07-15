@@ -5,8 +5,19 @@ import Metric from "../Metric";
 import EditDeleteAction from "../user/EditDeleteAction";
 import TagCard from "./TagCard";
 
+export interface QuestionCardData {
+  _id: string;
+  title: string;
+  tags: Array<{ _id: string; name: string }>;
+  author: { _id: string; name: string; image?: string };
+  createdAt: Date | string;
+  upvotes: number;
+  answers: number;
+  views: number;
+}
+
 interface Props {
-  question: Question;
+  question: QuestionCardData;
   showActionBtns?: boolean;
 }
 

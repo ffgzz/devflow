@@ -10,7 +10,8 @@ import Votes from "@/components/votes/Votes";
 import ROUTES from "@/constants/routes";
 import { getAnswers } from "@/lib/actions/answer.action";
 import { hasSavedQuestion } from "@/lib/actions/collection.action";
-import { getQuestion, incrementViews } from "@/lib/actions/question.action";
+import { getQuestion } from "@/lib/actions/question.action";
+import { recordQuestionView } from "@/lib/dal/question-view";
 import { hasVoted } from "@/lib/actions/vote.action";
 import { formatNumber, getTimeStamp } from "@/lib/utils";
 import Link from "next/link";
@@ -40,10 +41,11 @@ const QuestionDetails = async ({ params, searchParams }: RouteParams) => {
     notFound();
   }
 
-  // Only count views for a question that actually exists. The update runs after
-  // the response so it does not delay the question content.
+  // Request-time auth must be read before `after()` in a Server Component.
+  // The captured local id can then be used by the server-only telemetry helper.
+  const session = await auth();
   after(async () => {
-    await incrementViews({ questionId: id });
+    await recordQuestionView(id, session?.user?.id);
   });
 
   // 获取问题的答案列表，这里我们默认获取第一页，每页10条，按照最新的顺序排序
@@ -69,7 +71,6 @@ const QuestionDetails = async ({ params, searchParams }: RouteParams) => {
     questionId: id,
   });
 
-  const session = await auth();
   const {
     answers,
     views,

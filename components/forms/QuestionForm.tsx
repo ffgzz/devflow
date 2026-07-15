@@ -5,6 +5,14 @@ import { AskQuestionSchema } from "@/lib/validations";
 import ROUTES from "@/constants/routes";
 import { useIndexedDbDraft } from "@/hooks/useIndexedDbDraft";
 import { createQuestion, editQuestion } from "@/lib/actions/question.action";
+import type {
+  DraftEditMutation,
+  DraftMutationResult,
+} from "@/lib/ai/draft-edit-types";
+import {
+  QuestionWorkbenchDraftSchema,
+  type QuestionWorkbenchDraft,
+} from "@/lib/ai/question-analysis-schema";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { MDXEditorMethods } from "@mdxeditor/editor";
 import { Loader2Icon } from "lucide-react";
@@ -60,6 +68,16 @@ interface QuestionDraftData {
   tagInput: string;
 }
 
+const isSameWorkbenchDraft = (
+  left: QuestionWorkbenchDraft,
+  right: QuestionWorkbenchDraft,
+) =>
+  left.title === right.title &&
+  left.content === right.content &&
+  left.questionId === right.questionId &&
+  left.tags.length === right.tags.length &&
+  left.tags.every((tag, index) => tag === right.tags[index]);
+
 const QuestionForm = ({ question, isEdit = false }: Params) => {
   const router = useRouter();
   const session = useSession();
@@ -84,9 +102,10 @@ const QuestionForm = ({ question, isEdit = false }: Params) => {
     () => ({
       title: watchedValues.title ?? "",
       content: watchedValues.content ?? "",
-      tags: watchedValues.tags?.filter(
-        (tag): tag is string => typeof tag === "string",
-      ) ?? [],
+      tags:
+        watchedValues.tags?.filter(
+          (tag): tag is string => typeof tag === "string",
+        ) ?? [],
       tagInput,
     }),
     [tagInput, watchedValues.content, watchedValues.tags, watchedValues.title],
@@ -217,6 +236,109 @@ const QuestionForm = ({ question, isEdit = false }: Params) => {
       return true;
     },
     [form],
+  );
+
+  const currentWorkbenchDraft = useCallback(
+    (): QuestionWorkbenchDraft => ({
+      title: form.getValues("title"),
+      content: form.getValues("content"),
+      tags: form.getValues("tags"),
+      questionId: isEdit ? question?._id : undefined,
+    }),
+    [form, isEdit, question?._id],
+  );
+
+  const handleDraftMutation = useCallback(
+    (mutation: DraftEditMutation): DraftMutationResult => {
+      const previousDraft = currentWorkbenchDraft();
+      if (
+        !isSameWorkbenchDraft(previousDraft, mutation.expectedDraft) ||
+        previousDraft[mutation.field] !== mutation.expectedValue
+      ) {
+        return {
+          ok: false,
+          reason:
+            "The draft changed before this suggestion was applied. Your newer work was kept.",
+        };
+      }
+
+      if (
+        mutation.field === "content" &&
+        mutation.nextValue !== mutation.expectedValue &&
+        mutation.nextValue.trim() === mutation.expectedValue.trim()
+      ) {
+        return {
+          ok: false,
+          reason:
+            "This change only adjusts whitespace at the start or end of the question, which the editor cannot apply safely.",
+        };
+      }
+
+      const nextDraft = {
+        ...previousDraft,
+        [mutation.field]: mutation.nextValue,
+      };
+      const parsed = QuestionWorkbenchDraftSchema.safeParse(nextDraft);
+      if (!parsed.success) {
+        return {
+          ok: false,
+          reason:
+            parsed.error.issues[0]?.message ??
+            "This suggestion would make the draft invalid.",
+        };
+      }
+
+      form.setValue(mutation.field, mutation.nextValue, {
+        shouldDirty: true,
+        shouldTouch: true,
+        shouldValidate: true,
+      });
+      if (mutation.field === "content") {
+        // React Hook Form owns the persisted value; MDXEditor also keeps an
+        // imperative document model, so both must receive the same snapshot.
+        editorRef.current?.setMarkdown(mutation.nextValue);
+      }
+
+      return { ok: true, previousDraft, draft: parsed.data };
+    },
+    [currentWorkbenchDraft, form],
+  );
+
+  const handleSuggestedTagAdd = useCallback(
+    (
+      tag: string,
+      expectedDraft: QuestionWorkbenchDraft,
+    ): DraftMutationResult => {
+      const previousDraft = currentWorkbenchDraft();
+      if (!isSameWorkbenchDraft(previousDraft, expectedDraft)) {
+        return {
+          ok: false,
+          reason:
+            "The draft changed before this tag was added. Your newer work was kept.",
+        };
+      }
+
+      if (!handleTagAdd(tag)) {
+        return {
+          ok: false,
+          reason: "This tag could not be added to the current draft.",
+        };
+      }
+
+      const updatedDraft = currentWorkbenchDraft();
+      const parsed = QuestionWorkbenchDraftSchema.safeParse(updatedDraft);
+      if (!parsed.success) {
+        return {
+          ok: false,
+          reason:
+            parsed.error.issues[0]?.message ??
+            "The updated draft is not valid yet.",
+        };
+      }
+
+      return { ok: true, previousDraft, draft: parsed.data };
+    },
+    [currentWorkbenchDraft, handleTagAdd],
   );
 
   const handleInputKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
@@ -386,7 +508,8 @@ const QuestionForm = ({ question, isEdit = false }: Params) => {
           content={draftData.content}
           tags={draftData.tags}
           questionId={isEdit ? question?._id : undefined}
-          onAddTag={handleTagAdd}
+          onAddTag={handleSuggestedTagAdd}
+          onMutateDraft={handleDraftMutation}
         />
 
         <Controller

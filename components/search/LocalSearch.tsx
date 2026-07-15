@@ -32,6 +32,10 @@ const LocalSearch = ({
   // 这个状态可以用来控制输入框的值，初始值来自 URL 中的 query 参数，这样用户刷新页面时可以保持输入框中的内容。
   const [searchQuery, setSearchQuery] = useState(query);
 
+  useEffect(() => {
+    setSearchQuery(query);
+  }, [query]);
+
   // 当 searchQuery 变化时（也就是用户在输入框中输入内容时），更新 URL 中的查询参数
   useEffect(() => {
     // 确保只有在当前路径是指定的 route 时才更新 URL
@@ -49,17 +53,18 @@ const LocalSearch = ({
           params: searchParamsString,
           key: "query",
           value: searchQuery,
+          keysToRemove: ["page", "cursor"],
         });
         // 使用 router.push 来更新 URL
         // scroll: false 可以防止页面滚动到顶部
-        router.push(newUrl, { scroll: false });
+        router.replace(newUrl, { scroll: false });
       } else {
         // 如果 searchQuery 为空，说明用户清空了输入框，这时我们应该从 URL 中移除 query 参数
         const newUrl = removeKeysFromQuery({
           params: searchParamsString,
-          keysToRemove: ["query"],
+          keysToRemove: ["query", "page", "cursor"],
         });
-        router.push(newUrl, { scroll: false });
+        router.replace(newUrl, { scroll: false });
       }
     }, 300);
 

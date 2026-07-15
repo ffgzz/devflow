@@ -17,9 +17,7 @@ const httpUrlSchema = (message: string) =>
     );
 
 const mongoIdSchema = (resource: string) =>
-  z
-    .string()
-    .regex(/^[0-9a-f]{24}$/iu, { message: `Invalid ${resource} ID.` });
+  z.string().regex(/^[0-9a-f]{24}$/iu, { message: `Invalid ${resource} ID.` });
 
 // 定义 SignIn 和 SignUp 表单的验证规则，使用 Zod 来确保用户输入的数据符合预期的格式和要求。
 export const SignInSchema = z.object({
@@ -151,7 +149,9 @@ export const SignInWithOAuthSchema = z.object({
     name: z.string().min(1, "Name is required"),
     username: z.string().min(3, "Username must be at least 3 characters long"),
     email: z.string().email("Please provide a valid email address"),
-    image: httpUrlSchema("Please provide a valid HTTP(S) image URL.").optional(),
+    image: httpUrlSchema(
+      "Please provide a valid HTTP(S) image URL.",
+    ).optional(),
   }),
 });
 
@@ -167,10 +167,6 @@ export const PaginatedSearchParamsSchema = z.object({
 // 这个是用来获取某个标签下的问题的参数验证，确保用户输入的标签 ID 和分页参数符合预期的格式和要求。
 export const GetTagQuestionsSchema = PaginatedSearchParamsSchema.extend({
   tagId: mongoIdSchema("tag"),
-});
-
-export const IncrementViewsSchema = z.object({
-  questionId: mongoIdSchema("question"),
 });
 
 // 回答问题的验证规则，AnswerForm组件只接受 这一个参数
@@ -214,9 +210,11 @@ const VoteTargetSchema = z.object({
 });
 
 export const SetVoteSchema = VoteTargetSchema.extend({
-  voteType: z.enum(["upvote", "downvote"], {
-    message: "Vote type must be either 'upvote' or 'downvote'",
-  }).nullable(),
+  voteType: z
+    .enum(["upvote", "downvote"], {
+      message: "Vote type must be either 'upvote' or 'downvote'",
+    })
+    .nullable(),
 });
 
 export const hasVotedSchema = VoteTargetSchema;
@@ -275,11 +273,3 @@ export const ProfileSchema = z.object({
 });
 
 export const UpdateUserSchema = ProfileSchema;
-
-export const GlobalSearchSchema = z.object({
-  query: z.string().trim().min(1).max(100),
-  type: z
-    .enum(["question", "answer", "user", "tag"])
-    .nullable()
-    .optional(),
-});

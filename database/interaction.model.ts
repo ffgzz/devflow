@@ -40,6 +40,18 @@ const InteractionSchema = new Schema<IInteraction>(
 );
 
 InteractionSchema.index({ actionType: 1, actionId: 1, action: 1, user: 1 });
+InteractionSchema.index(
+  { user: 1, actionType: 1, updatedAt: -1, _id: -1 },
+  { name: "recommendation_user_recent" },
+);
+InteractionSchema.index(
+  { user: 1, actionId: 1, actionType: 1, action: 1 },
+  {
+    name: "interaction_unique_question_view",
+    unique: true,
+    partialFilterExpression: { action: "view", actionType: "question" },
+  },
+);
 
 const Interaction =
   models.Interaction || model<IInteraction>("Interaction", InteractionSchema);

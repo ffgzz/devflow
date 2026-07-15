@@ -2,21 +2,15 @@
 
 import { formUrlQuery, removeKeysFromQuery } from "@/lib/url";
 import { cn } from "@/lib/utils";
+import { HomePageFilters } from "@/constants/filters";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "../ui/button";
-
-const filters = [
-  { name: "React", value: "react" },
-  { name: "JavaScript", value: "javascript" },
-  { name: "Unanswered", value: "unanswered" },
-  { name: "Recommended", value: "recommended" },
-];
 
 const HomeFilter = () => {
   const searchParams = useSearchParams();
   const filterParams = searchParams.get("filter");
   // URL is the source of truth, so browser back/forward also updates the UI.
-  const active = filterParams || "";
+  const active = filterParams || "newest";
   const router = useRouter();
 
   // 当用户点击某个过滤器时，更新 active 状态，并且更新 URL 中的 filter 参数，这样用户可以分享当前的过滤状态，或者刷新页面时保持过滤状态。
@@ -25,12 +19,13 @@ const HomeFilter = () => {
       filter === active
         ? removeKeysFromQuery({
             params: searchParams.toString(),
-            keysToRemove: ["filter"],
+            keysToRemove: ["filter", "page", "cursor"],
           })
         : formUrlQuery({
             params: searchParams.toString(),
             key: "filter",
             value: filter.toLowerCase(),
+            keysToRemove: ["page", "cursor"],
           });
 
     router.push(newUrl, { scroll: false });
@@ -38,7 +33,7 @@ const HomeFilter = () => {
 
   return (
     <div className="mt-10 hidden flex-wrap gap-3 sm:flex">
-      {filters.map((filter) => (
+      {HomePageFilters.map((filter) => (
         <Button
           key={filter.name}
           onClick={() => handleTypeClick(filter.value)}

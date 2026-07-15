@@ -36,10 +36,6 @@ interface GetTagQuestionsParams extends Omit<PaginatedSearchParams, "filter"> {
   tagId: string;
 }
 
-interface IncrementViewsParams {
-  questionId: string;
-}
-
 interface CreateAnswerParams {
   questionId: string;
   content: string;
@@ -100,14 +96,6 @@ interface SetAnswerAcceptanceParams {
   accepted: boolean;
 }
 
-// 这个接口定义了推荐问题的参数类型，包含了用户ID、可选的查询字符串，以及分页参数（skip和limit）。
-interface RecommendationParams {
-  userId: string;
-  query?: string;
-  skip: number;
-  limit: number;
-}
-
 interface JobFilterParams {
   query: string;
   page: string;
@@ -119,9 +107,4 @@ interface UpdateUserParams {
   portfolio: string;
   location: string;
   bio: string;
-}
-
-interface GlobalSearchParams {
-  query: string;
-  type?: "question" | "answer" | "user" | "tag" | null;
 }

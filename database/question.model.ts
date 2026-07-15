@@ -58,6 +58,18 @@ QuestionSchema.index(
   { tags: 1, createdAt: -1, _id: -1 },
   { name: "question_similarity_tags" },
 );
+QuestionSchema.index(
+  { createdAt: -1, _id: -1 },
+  { name: "question_feed_newest" },
+);
+QuestionSchema.index(
+  { answers: 1, createdAt: -1, _id: -1 },
+  { name: "question_feed_unanswered" },
+);
+QuestionSchema.index(
+  { upvotes: -1, createdAt: -1, _id: -1 },
+  { name: "question_feed_popular" },
+);
 
 const Question =
   models.Question || model<IQuestion>("Question", QuestionSchema);

@@ -12,9 +12,17 @@
     "check": "pnpm lint && pnpm typecheck",
     "health": "node scripts/healthcheck.mjs",
     "check:week3-search": "node scripts/check-week3-search.mjs",
+    "check:week4-draft-edits": "node scripts/check-week4-draft-edits.mjs",
+    "check:week4-stream": "node scripts/check-week4-stream.mjs",
+    "check:week4": "pnpm check:week4-draft-edits && pnpm check:week4-stream",
+    "generate:worker-runtime": "node scripts/generate-worker-runtime.mjs",
+    "check:week56-sandbox": "node scripts/check-week56-sandbox.mjs",
+    "check:week56": "pnpm check:week56-sandbox",
+    "check:week7": "node scripts/check-week7-recommendation.mjs",
     "seed": "node scripts/seed.mjs",
     "migrate:week2": "node scripts/migrate-week2.mjs",
-    "migrate:week3": "node scripts/migrate-week3.mjs"
+    "migrate:week3": "node scripts/migrate-week3.mjs",
+    "migrate:week7": "node scripts/migrate-week7.mjs"
   },
   "dependencies": {
     "@ai-sdk/openai": "^3.0.66",

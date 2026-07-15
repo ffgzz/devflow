@@ -5,9 +5,21 @@ import { Button } from "@/components/ui/button";
 import ROUTES from "@/constants/routes";
 import { useQuestionAnalysis } from "@/hooks/useQuestionAnalysis";
 import {
+  buildDraftEditMutation,
+  buildDraftEditUndoMutation,
+} from "@/lib/ai/draft-edit-operations.mjs";
+import type {
+  DraftEditField,
+  DraftEditMutation,
+  DraftEditTransaction,
+  DraftMutationResult,
+} from "@/lib/ai/draft-edit-types";
+import {
   QUESTION_ANALYSIS_DIMENSION_KEYS,
   QUESTION_ANALYSIS_DIMENSION_LABELS,
+  type DraftEdit,
   type QuestionAnalysisPartial,
+  type QuestionWorkbenchDraft,
 } from "@/lib/ai/question-analysis-schema";
 import {
   AlertTriangleIcon,
@@ -24,15 +36,40 @@ import {
   ThumbsUpIcon,
 } from "lucide-react";
 import Link from "next/link";
-import { useId, useMemo } from "react";
+import {
+  useCallback,
+  useId,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import AIDraftEditList from "./AIDraftEditList";
 
 interface Props {
   title: string;
   content: string;
   tags: string[];
   questionId?: string;
-  onAddTag: (tag: string) => boolean;
+  onAddTag: (
+    tag: string,
+    expectedDraft: QuestionWorkbenchDraft,
+  ) => DraftMutationResult;
+  onMutateDraft: (mutation: DraftEditMutation) => DraftMutationResult;
 }
+
+type DraftEditStacks = Record<DraftEditField, string[]>;
+
+const createEmptyEditStacks = (): DraftEditStacks => ({
+  title: [],
+  content: [],
+});
+
+const resetTimeLabel = (value: string) =>
+  new Date(value).toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 
 const scoreLabel = (score: number) => {
   if (score >= 85) return "Excellent";
@@ -65,11 +102,7 @@ const ScoreRing = ({ score }: { score: number }) => (
   </div>
 );
 
-const DimensionList = ({
-  analysis,
-}: {
-  analysis: QuestionAnalysisPartial;
-}) => {
+const DimensionList = ({ analysis }: { analysis: QuestionAnalysisPartial }) => {
   const dimensions = QUESTION_ANALYSIS_DIMENSION_KEYS.flatMap((key) => {
     const dimension = analysis.dimensions?.[key];
     return dimension ? [{ key, dimension }] : [];
@@ -137,6 +170,7 @@ const AIQuestionWorkbench = ({
   tags,
   questionId,
   onAddTag,
+  onMutateDraft,
 }: Props) => {
   const headingId = useId();
   const draft = useMemo(
@@ -146,14 +180,20 @@ const AIQuestionWorkbench = ({
   const {
     analyze,
     stopAnalysis,
-    acknowledgeSuggestedTag,
+    acknowledgeDraftMutation,
+    isCurrentAnalysisDraft,
     canAnalyze,
     validationMessage,
     status,
     stage,
+    attempt,
+    maxAttempts,
+    retry,
     partial,
     result,
     quota,
+    quotaLoading,
+    quotaScope,
     error,
     quotaBlockedUntil,
     isAnalysisStale,
@@ -162,15 +202,200 @@ const AIQuestionWorkbench = ({
     similarQuestions,
     similarityError,
   } = useQuestionAnalysis(draft);
+  const currentDraftRef = useRef<QuestionWorkbenchDraft>(draft);
+  const [appliedEdits, setAppliedEdits] = useState<
+    Record<string, DraftEditTransaction>
+  >({});
+  const [editConflicts, setEditConflicts] = useState<
+    Record<string, string | undefined>
+  >({});
+  const [editStacks, setEditStacks] = useState<DraftEditStacks>(
+    createEmptyEditStacks,
+  );
+  const [tagMutationError, setTagMutationError] = useState<string>();
   const currentTags = new Set(tags.map((tag) => tag.trim().toLowerCase()));
   const canApplySuggestions = status === "complete" && !isAnalysisStale;
   const hasAIOutput = Boolean(partial || result);
+  const appliedEditIds = useMemo(
+    () => new Set(Object.keys(appliedEdits)),
+    [appliedEdits],
+  );
+  const undoableEditIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const stack of Object.values(editStacks)) {
+      const topEditId = stack[stack.length - 1];
+      if (topEditId) ids.add(topEditId);
+    }
+    return ids;
+  }, [editStacks]);
   const analyzeButtonLabel =
     status === "streaming"
       ? "Analyzing..."
       : status === "idle"
         ? "Analyze draft"
         : "Analyze again";
+
+  useLayoutEffect(() => {
+    currentDraftRef.current = draft;
+  }, [draft]);
+
+  const setEditConflict = useCallback((editId: string, message?: string) => {
+    setEditConflicts((current) => ({ ...current, [editId]: message }));
+  }, []);
+
+  const handleAnalyze = useCallback(() => {
+    setAppliedEdits({});
+    setEditConflicts({});
+    setEditStacks(createEmptyEditStacks());
+    setTagMutationError(undefined);
+    void analyze();
+  }, [analyze]);
+
+  const handleApplyEdit = useCallback(
+    (edit: DraftEdit) => {
+      const previousDraft = currentDraftRef.current;
+      if (!isCurrentAnalysisDraft(previousDraft)) {
+        setEditConflict(
+          edit.id,
+          "The draft has changed since this analysis. Analyze it again before applying this suggestion.",
+        );
+        return;
+      }
+
+      const candidate = buildDraftEditMutation(previousDraft, edit) as Omit<
+        DraftEditMutation,
+        "expectedDraft"
+      > | null;
+      if (!candidate) {
+        setEditConflict(
+          edit.id,
+          "The exact original text is no longer available, so no change was made.",
+        );
+        return;
+      }
+      const mutation: DraftEditMutation = {
+        ...candidate,
+        expectedDraft: previousDraft,
+      };
+
+      const outcome = onMutateDraft(mutation);
+      if (!outcome.ok) {
+        setEditConflict(edit.id, outcome.reason);
+        return;
+      }
+
+      currentDraftRef.current = outcome.draft;
+      acknowledgeDraftMutation(outcome.previousDraft, outcome.draft);
+      setAppliedEdits((current) => ({
+        ...current,
+        [edit.id]: {
+          field: mutation.field,
+          beforeValue: mutation.expectedValue,
+          afterValue: mutation.nextValue,
+        },
+      }));
+      setEditStacks((current) => ({
+        ...current,
+        [mutation.field]: [
+          ...current[mutation.field].filter((editId) => editId !== edit.id),
+          edit.id,
+        ],
+      }));
+      setEditConflict(edit.id);
+    },
+    [
+      acknowledgeDraftMutation,
+      isCurrentAnalysisDraft,
+      onMutateDraft,
+      setEditConflict,
+    ],
+  );
+
+  const handleUndoEdit = useCallback(
+    (edit: DraftEdit) => {
+      const transaction = appliedEdits[edit.id];
+      if (!transaction) return;
+
+      const fieldStack = editStacks[transaction.field];
+      if (fieldStack[fieldStack.length - 1] !== edit.id) {
+        setEditConflict(
+          edit.id,
+          "Undo the later change to this field first. Your draft was not changed.",
+        );
+        return;
+      }
+
+      const previousDraft = currentDraftRef.current;
+      const candidate = buildDraftEditUndoMutation(
+        previousDraft,
+        transaction,
+      ) as Omit<DraftEditMutation, "expectedDraft"> | null;
+      if (!candidate) {
+        setEditConflict(
+          edit.id,
+          "Undo was blocked because this field changed afterward. Your newer text was kept.",
+        );
+        return;
+      }
+      const mutation: DraftEditMutation = {
+        ...candidate,
+        expectedDraft: previousDraft,
+      };
+
+      const outcome = onMutateDraft(mutation);
+      if (!outcome.ok) {
+        setEditConflict(edit.id, outcome.reason);
+        return;
+      }
+
+      currentDraftRef.current = outcome.draft;
+      acknowledgeDraftMutation(outcome.previousDraft, outcome.draft);
+      setAppliedEdits((current) => {
+        const next = { ...current };
+        delete next[edit.id];
+        return next;
+      });
+      setEditStacks((current) => {
+        const stack = current[transaction.field];
+        if (stack[stack.length - 1] !== edit.id) return current;
+        return {
+          ...current,
+          [transaction.field]: stack.slice(0, -1),
+        };
+      });
+      setEditConflict(edit.id);
+    },
+    [
+      acknowledgeDraftMutation,
+      appliedEdits,
+      editStacks,
+      onMutateDraft,
+      setEditConflict,
+    ],
+  );
+
+  const handleAddSuggestedTag = useCallback(
+    (tag: string) => {
+      const previousDraft = currentDraftRef.current;
+      if (!isCurrentAnalysisDraft(previousDraft)) {
+        setTagMutationError(
+          "The draft changed after this analysis. Analyze it again before adding a suggested tag.",
+        );
+        return;
+      }
+
+      const outcome = onAddTag(tag, previousDraft);
+      if (!outcome.ok) {
+        setTagMutationError(outcome.reason);
+        return;
+      }
+
+      currentDraftRef.current = outcome.draft;
+      acknowledgeDraftMutation(outcome.previousDraft, outcome.draft);
+      setTagMutationError(undefined);
+    },
+    [acknowledgeDraftMutation, isCurrentAnalysisDraft, onAddTag],
+  );
 
   return (
     <section
@@ -181,8 +406,14 @@ const AIQuestionWorkbench = ({
         <div className="flex flex-col justify-between gap-5 sm:flex-row sm:items-start">
           <div className="max-w-2xl">
             <div className="mb-2 flex flex-wrap items-center gap-2">
-              <SparklesIcon aria-hidden="true" className="size-5 text-primary-500" />
-              <h2 id={headingId} className="base-semibold text-dark200_light900">
+              <SparklesIcon
+                aria-hidden="true"
+                className="size-5 text-primary-500"
+              />
+              <h2
+                id={headingId}
+                className="base-semibold text-dark200_light900"
+              >
                 AI Question Coach
               </h2>
               <Badge
@@ -194,15 +425,15 @@ const AIQuestionWorkbench = ({
             </div>
             <p className="small-regular text-dark400_light700">
               Get a live quality review, missing-detail checklist, tag ideas,
-              and possible duplicate questions. Nothing is changed unless you
-              choose it.
+              safe local text changes, and possible duplicate questions. Nothing
+              is changed unless you choose it.
             </p>
           </div>
 
           <div className="flex shrink-0 flex-wrap gap-2">
             <Button
               type="button"
-              onClick={() => void analyze()}
+              onClick={handleAnalyze}
               disabled={!canAnalyze || status === "streaming"}
               className="primary-gradient min-h-11 px-4 text-white"
             >
@@ -232,7 +463,7 @@ const AIQuestionWorkbench = ({
           </div>
         </div>
 
-        <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
           <p
             role="status"
             aria-live="polite"
@@ -240,12 +471,40 @@ const AIQuestionWorkbench = ({
           >
             {stage}
           </p>
-          {quota && (
-            <p className="small-regular text-dark400_light700">
-              Today: {quota.dayRemaining}/{quota.dayLimit} AI requests left
-            </p>
-          )}
+          <div className="flex flex-wrap items-center gap-2">
+            {status === "streaming" && attempt > 0 && (
+              <Badge variant="secondary">
+                Attempt {attempt}/{maxAttempts}
+              </Badge>
+            )}
+            {retry && <Badge variant="outline">Retry scheduled</Badge>}
+            {quotaLoading && (
+              <p className="small-regular text-dark400_light700">
+                Checking AI quota...
+              </p>
+            )}
+          </div>
         </div>
+        {quota && (
+          <div className="mt-3 grid gap-2 sm:grid-cols-2">
+            <div className="rounded-lg border border-light-700 bg-light-900/60 px-3 py-2 dark:border-dark-400 dark:bg-dark-300/50">
+              <p className="small-semibold text-dark300_light700">
+                Hourly quota: {quota.hourRemaining}/{quota.hourLimit} left
+              </p>
+              <p className="small-regular text-dark400_light700">
+                Resets at {resetTimeLabel(quota.hourResetAt)}
+              </p>
+            </div>
+            <div className="rounded-lg border border-light-700 bg-light-900/60 px-3 py-2 dark:border-dark-400 dark:bg-dark-300/50">
+              <p className="small-semibold text-dark300_light700">
+                Daily quota: {quota.dayRemaining}/{quota.dayLimit} left
+              </p>
+              <p className="small-regular text-dark400_light700">
+                Resets at {resetTimeLabel(quota.dayResetAt)}
+              </p>
+            </div>
+          </div>
+        )}
         {status !== "streaming" && validationMessage && (
           <p className="small-regular mt-2 text-dark400_light700">
             {validationMessage}
@@ -256,7 +515,10 @@ const AIQuestionWorkbench = ({
       <div className="space-y-6 p-5 sm:p-6">
         {isAnalysisStale && (
           <div className="flex gap-3 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-950/30 dark:text-amber-200">
-            <AlertTriangleIcon aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
+            <AlertTriangleIcon
+              aria-hidden="true"
+              className="mt-0.5 size-4 shrink-0"
+            />
             <p>
               The title, details, or tags changed after this run. Analyze again
               before applying its suggestions.
@@ -269,22 +531,45 @@ const AIQuestionWorkbench = ({
             role="alert"
             className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/30 dark:text-red-300"
           >
-            <p>{error.message}</p>
-            {quotaBlockedUntil && (
-              <p className="mt-1 font-medium">
-                You can analyze again after{" "}
-                {new Date(quotaBlockedUntil).toLocaleTimeString([], {
-                  hour: "2-digit",
-                  minute: "2-digit",
-                })}
-                .
-              </p>
-            )}
+            <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
+              <div>
+                <p>{error.message}</p>
+                {quotaBlockedUntil && (
+                  <p className="mt-1 font-medium">
+                    {quotaScope === "day" ? "Daily" : "Hourly"} quota resets at{" "}
+                    {new Date(quotaBlockedUntil).toLocaleTimeString([], {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
+                    .
+                  </p>
+                )}
+              </div>
+              {error.retryable && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={handleAnalyze}
+                  disabled={!canAnalyze || status === "streaming"}
+                  className="self-start border-red-300 sm:self-auto dark:border-red-800"
+                >
+                  <RefreshCwIcon aria-hidden="true" />
+                  Retry
+                </Button>
+              )}
+            </div>
           </div>
         )}
 
         {status === "streaming" && !hasAIOutput && (
-          <LoadingBlock label="Waiting for the first AI analysis event..." />
+          <LoadingBlock
+            label={
+              retry
+                ? "Waiting for the controlled retry..."
+                : "Waiting for the first AI analysis event..."
+            }
+          />
         )}
 
         {hasAIOutput && partial && (
@@ -350,10 +635,25 @@ const AIQuestionWorkbench = ({
               </div>
             )}
 
+            {result && (
+              <AIDraftEditList
+                edits={result.draftEdits}
+                canApply={canApplySuggestions}
+                appliedEditIds={appliedEditIds}
+                undoableEditIds={undoableEditIds}
+                conflicts={editConflicts}
+                onApply={handleApplyEdit}
+                onUndo={handleUndoEdit}
+              />
+            )}
+
             {result && result.tagSuggestions.length > 0 && (
               <div>
                 <div className="mb-3 flex items-center gap-2">
-                  <TagIcon aria-hidden="true" className="size-4 text-primary-500" />
+                  <TagIcon
+                    aria-hidden="true"
+                    className="size-4 text-primary-500"
+                  />
                   <h3 className="base-semibold text-dark200_light900">
                     Suggested tags
                   </h3>
@@ -371,7 +671,7 @@ const AIQuestionWorkbench = ({
                         key={suggestion.name}
                         className="background-light800_dark300 rounded-lg border border-light-700 p-3 dark:border-dark-400"
                       >
-                        <div className="flex items-center justify-between gap-2">
+                        <div className="flex flex-col items-stretch gap-2 sm:flex-row sm:items-center sm:justify-between">
                           <Button
                             type="button"
                             variant="outline"
@@ -381,12 +681,10 @@ const AIQuestionWorkbench = ({
                                 ? `${suggestion.name} is already added`
                                 : `Add tag ${suggestion.name}`
                             }
-                            onClick={() => {
-                              if (onAddTag(suggestion.name)) {
-                                acknowledgeSuggestedTag(suggestion.name);
-                              }
-                            }}
-                            className="min-h-11"
+                            onClick={() =>
+                              handleAddSuggestedTag(suggestion.name)
+                            }
+                            className="min-h-11 min-w-0 max-w-full shrink justify-start whitespace-normal break-all text-left sm:w-auto sm:justify-center"
                           >
                             {isAdded ? (
                               <CheckCircle2Icon aria-hidden="true" />
@@ -395,7 +693,7 @@ const AIQuestionWorkbench = ({
                             )}
                             {suggestion.name}
                           </Button>
-                          <Badge variant="secondary">
+                          <Badge variant="secondary" className="w-fit shrink-0">
                             {Math.round(suggestion.confidence * 100)}%
                           </Badge>
                         </div>
@@ -411,6 +709,14 @@ const AIQuestionWorkbench = ({
                     Remove a tag first if you want to use another suggestion.
                   </p>
                 )}
+                {tagMutationError && (
+                  <p
+                    role="alert"
+                    className="mt-2 text-sm text-amber-700 dark:text-amber-300"
+                  >
+                    {tagMutationError}
+                  </p>
+                )}
               </div>
             )}
           </div>
@@ -418,7 +724,10 @@ const AIQuestionWorkbench = ({
 
         <div className="border-t border-light-700 pt-5 dark:border-dark-400">
           <div className="mb-3 flex items-center gap-2">
-            <SearchIcon aria-hidden="true" className="size-4 text-primary-500" />
+            <SearchIcon
+              aria-hidden="true"
+              className="size-4 text-primary-500"
+            />
             <h3 className="base-semibold text-dark200_light900">
               Possibly similar questions
             </h3>
@@ -504,7 +813,10 @@ const AIQuestionWorkbench = ({
                   </div>
                   <div className="text-dark400_light700 mt-3 flex flex-wrap gap-4 text-xs">
                     <span className="flex items-center gap-1">
-                      <MessageCircleIcon aria-hidden="true" className="size-3.5" />
+                      <MessageCircleIcon
+                        aria-hidden="true"
+                        className="size-3.5"
+                      />
                       {question.answers} answers
                     </span>
                     <span className="flex items-center gap-1">
@@ -513,7 +825,10 @@ const AIQuestionWorkbench = ({
                     </span>
                     {question.hasAcceptedAnswer && (
                       <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
-                        <CheckCircle2Icon aria-hidden="true" className="size-3.5" />
+                        <CheckCircle2Icon
+                          aria-hidden="true"
+                          className="size-3.5"
+                        />
                         Solved
                       </span>
                     )}

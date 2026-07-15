@@ -68,6 +68,15 @@ jobs:
       - name: Type-check
         run: pnpm typecheck
 
+      - name: Check Week 4 AI workflow
+        run: pnpm check:week4
+
+      - name: Check Week 5-6 browser sandbox
+        run: pnpm check:week56
+
+      - name: Check Week 7 recommendation and cursor logic
+        run: pnpm check:week7
+
       - name: Check Week 3 search terms
         run: pnpm check:week3-search
 
@@ -86,6 +95,11 @@ jobs:
 
       - name: Verify Week 3 search indexes
         run: pnpm migrate:week3 --apply
+
+      - name: Verify Week 7 feed indexes and view deduplication
+        run: |
+          pnpm migrate:week7 --apply
+          pnpm migrate:week7
 
       - name: Build
         run: pnpm build

@@ -116,10 +116,3 @@ interface Country {
     common: string;
   };
 }
-
-// 全局搜索结果项的接口，表示一个搜索结果项的信息，包括一个 id 字段表示结果项的唯一标识，一个 type 字段表示结果项的类型（可以是 "question"、"answer"、"user" 或 "tag"），以及一个 title 字段表示结果项的标题或名称。
-interface GlobalSearchedItem {
-  id: string;
-  type: "question" | "answer" | "user" | "tag";
-  title: string;
-}

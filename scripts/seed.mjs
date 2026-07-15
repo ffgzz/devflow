@@ -1,11 +1,7 @@
 import bcrypt from "bcryptjs";
 import mongoose from "mongoose";
 import { buildQuestionSearchTerms } from "../lib/search/question-search-terms.mjs";
-import {
-  loadProjectEnv,
-  requireEnv,
-  safeErrorMessage,
-} from "./_env.mjs";
+import { loadProjectEnv, requireEnv, safeErrorMessage } from "./_env.mjs";
 
 const DATABASE_NAME = "devflow";
 const DEMO_EMAIL = "demo@devflow.local";
@@ -31,9 +27,40 @@ const users = [
     portfolio: "https://github.com/",
     reputation: 860,
   },
+  {
+    seedKey: "devflow-demo-architect",
+    name: "DevFlow Architect",
+    username: "devflow_architect",
+    email: "architect@devflow.local",
+    bio: "Frontend platform engineer focused on performance and web security.",
+    location: "Shenzhen, China",
+    portfolio: "https://github.com/",
+    reputation: 1_120,
+  },
+  {
+    seedKey: "devflow-demo-newcomer",
+    name: "DevFlow Newcomer",
+    username: "devflow_newcomer",
+    email: "newcomer@devflow.local",
+    bio: "A new community member with no recommendation history yet.",
+    location: "Nanjing, China",
+    reputation: 0,
+  },
 ];
 
-const tags = ["javascript", "typescript", "react", "next.js", "mongodb"];
+const tags = [
+  "javascript",
+  "typescript",
+  "react",
+  "next.js",
+  "mongodb",
+  "css",
+  "testing",
+  "performance",
+  "web-security",
+  "node.js",
+  "algorithms",
+];
 
 const questions = [
   {
@@ -41,6 +68,7 @@ const questions = [
     author: "devflow-demo-owner",
     title: "Why does React state look stale inside this event callback?",
     tags: ["javascript", "react"],
+    ageDays: 45,
     views: 128,
     content: `## Problem
 
@@ -62,6 +90,7 @@ Why does the callback capture an older value, and what is the cleanest fix when 
     author: "devflow-demo-mentor",
     title: "How should I invalidate cached data after a Next.js Server Action?",
     tags: ["typescript", "react", "next.js"],
+    ageDays: 5,
     views: 264,
     content: `## Context
 
@@ -74,12 +103,170 @@ I want to understand when to use path revalidation, tag-based revalidation, or a
     author: "devflow-demo-owner",
     title: "Cursor pagination with MongoDB when multiple records share a date",
     tags: ["typescript", "mongodb"],
+    ageDays: 2,
     views: 93,
     content: `## Goal
 
 I am replacing page-number pagination with cursor pagination for an infinite question feed. Sorting only by \`createdAt\` produces duplicates when several documents have the same timestamp.
 
 How can I build a stable cursor using both \`createdAt\` and \`_id\`, query the next page, and preserve the correct order without skipping documents?`,
+  },
+  {
+    seedKey: "devflow-demo-question-react-rendering",
+    author: "devflow-demo-architect",
+    title: "How do I find the React component causing expensive rerenders?",
+    tags: ["react", "performance"],
+    ageDays: 1,
+    views: 418,
+    content: `## Symptoms
+
+Typing into one input rerenders most of the dashboard and drops frames. React DevTools shows many commits, but I am unsure whether the real cause is context, unstable props, or an expensive child.
+
+What profiling workflow would isolate the bottleneck before adding memoization everywhere?`,
+  },
+  {
+    seedKey: "devflow-demo-question-ts-unions",
+    author: "devflow-demo-mentor",
+    title: "Modeling async UI states with TypeScript discriminated unions",
+    tags: ["typescript", "react"],
+    ageDays: 3,
+    views: 205,
+    content: `A component currently stores loading, error, and data in three independent state values, so impossible combinations can occur. How can a discriminated union make every render branch exhaustive while keeping actions easy to type?`,
+  },
+  {
+    seedKey: "devflow-demo-question-event-loop",
+    author: "devflow-demo-mentor",
+    title: "Why does this promise callback run before setTimeout zero?",
+    tags: ["javascript", "node.js"],
+    ageDays: 7,
+    views: 376,
+    content: `I am comparing microtasks, timers, and async functions in the browser and Node.js. The visible order changes when I add nested promises. What is the smallest mental model that predicts each turn of the event loop?`,
+  },
+  {
+    seedKey: "devflow-demo-question-rsc-boundary",
+    author: "devflow-demo-architect",
+    title: "Where should the Server and Client Component boundary live?",
+    tags: ["typescript", "react", "next.js"],
+    ageDays: 12,
+    views: 188,
+    content: `A product page fetches data on the server but contains filters, a cart button, and an interactive chart. Marking the whole page as a Client Component works, but increases JavaScript. How should I choose a narrow client boundary?`,
+  },
+  {
+    seedKey: "devflow-demo-question-mongo-transactions",
+    author: "devflow-demo-mentor",
+    title: "Keeping vote rows and counters consistent in MongoDB transactions",
+    tags: ["typescript", "mongodb"],
+    ageDays: 20,
+    views: 144,
+    content: `A vote mutation writes a unique Vote row and increments counters on the target document. How should retries, vote switching, and transaction rollbacks be designed so the denormalized counts cannot drift?`,
+  },
+  {
+    seedKey: "devflow-demo-question-container-queries",
+    author: "devflow-demo-architect",
+    title: "When should I use CSS container queries instead of media queries?",
+    tags: ["css", "react"],
+    ageDays: 2,
+    views: 97,
+    content: `The same card appears in a narrow sidebar and a wide grid. Viewport breakpoints cannot describe both layouts. How can I introduce container queries while keeping a sensible fallback and readable component styles?`,
+  },
+  {
+    seedKey: "devflow-demo-question-playwright-flaky",
+    author: "devflow-demo-architect",
+    title: "How can I diagnose a flaky Playwright test without adding sleeps?",
+    tags: ["testing", "javascript"],
+    ageDays: 4,
+    views: 231,
+    content: `A checkout test fails only in CI after clicking Submit. Fixed delays hide the issue but slow the suite. Which traces, locators, and web-first assertions should I use to identify the real race?`,
+  },
+  {
+    seedKey: "devflow-demo-question-csp",
+    author: "devflow-demo-mentor",
+    title: "A practical Content Security Policy for a Next.js application",
+    tags: ["next.js", "web-security"],
+    ageDays: 9,
+    views: 302,
+    content: `I want a CSP that blocks arbitrary scripts without breaking framework bootstrapping, OAuth, images, or a sandboxed code preview. How should development and production policies differ, and how do I test them?`,
+  },
+  {
+    seedKey: "devflow-demo-question-stream-backpressure",
+    author: "devflow-demo-mentor",
+    title: "Understanding backpressure in Node.js streams",
+    tags: ["javascript", "node.js", "performance"],
+    ageDays: 16,
+    views: 166,
+    content: `A data export reads MongoDB rows and writes a large CSV response. Memory grows because the producer is faster than the client. How should drain, pipeline, and highWaterMark be used to respect backpressure?`,
+  },
+  {
+    seedKey: "devflow-demo-question-optimistic-rollback",
+    author: "devflow-demo-architect",
+    title: "Designing optimistic updates that survive out-of-order responses",
+    tags: ["typescript", "react"],
+    ageDays: 6,
+    views: 289,
+    content: `A user can click Save rapidly from multiple tabs. I want instant feedback, but an older failed request must not roll back a newer successful state. What request identity and reconciliation pattern keeps the UI correct?`,
+  },
+  {
+    seedKey: "devflow-demo-question-inp",
+    author: "devflow-demo-mentor",
+    title: "Breaking up long JavaScript tasks to improve INP",
+    tags: ["javascript", "performance"],
+    ageDays: 1,
+    views: 512,
+    content: `Filtering a large local dataset blocks the main thread after every keystroke. How do I measure the long task and choose between yielding, debouncing, memoization, and a Web Worker?`,
+  },
+  {
+    seedKey: "devflow-demo-question-lru",
+    author: "devflow-demo-architect",
+    title: "Implementing an O(1) LRU cache in TypeScript",
+    tags: ["typescript", "algorithms"],
+    ageDays: 30,
+    views: 120,
+    content: `I understand that a Map and a doubly linked list can support constant-time get and put. How should the node invariants, eviction edge cases, and generic TypeScript API be structured cleanly?`,
+  },
+  {
+    seedKey: "devflow-demo-question-next-images",
+    author: "devflow-demo-architect",
+    title: "Choosing sizes and priority for responsive Next.js images",
+    tags: ["next.js", "performance"],
+    ageDays: 14,
+    views: 174,
+    content: `A responsive hero image looks sharp but downloads a much larger file than its rendered size. How should the sizes attribute, priority, formats, and remote image allowlist be configured and verified?`,
+  },
+  {
+    seedKey: "devflow-demo-question-ts-inference",
+    author: "devflow-demo-mentor",
+    title: "Preserving literal types through a generic TypeScript helper",
+    tags: ["typescript"],
+    ageDays: 45,
+    views: 101,
+    content: `A generic configuration helper widens route names from literals to string, so downstream autocomplete disappears. Which constraints, readonly tuples, and const type parameters preserve the useful inference?`,
+  },
+  {
+    seedKey: "devflow-demo-question-effect-race",
+    author: "devflow-demo-mentor",
+    title: "Preventing stale fetch responses inside React effects",
+    tags: ["javascript", "react"],
+    ageDays: 60,
+    views: 263,
+    content: `When a user changes the selected profile quickly, the older network request can finish last and overwrite the new data. Should I use AbortController, a request sequence, or both, and where should cleanup happen?`,
+  },
+  {
+    seedKey: "devflow-demo-question-suspense",
+    author: "devflow-demo-architect",
+    title: "Avoiding waterfalls when using Suspense for data fetching",
+    tags: ["react", "next.js", "performance"],
+    ageDays: 8,
+    views: 194,
+    content: `Several nested server components fetch independently and reveal one after another. How can I start requests in parallel, choose useful Suspense boundaries, and avoid turning the page into a spinner wall?`,
+  },
+  {
+    seedKey: "devflow-demo-question-mongo-indexes",
+    author: "devflow-demo-mentor",
+    title: "Ordering fields in a compound MongoDB index for a feed",
+    tags: ["mongodb", "performance"],
+    ageDays: 25,
+    views: 155,
+    content: `A feed filters by status and sorts by score, createdAt, and _id. How should equality, sort, and range fields be ordered in the compound index, and how can explain output confirm that the query is covered?`,
   },
 ];
 
@@ -153,6 +340,62 @@ const votes = [
     target: "devflow-demo-answer-mongodb-pagination",
     voteType: "downvote",
   },
+  {
+    seedKey: "devflow-demo-vote-owner-react-rendering-up",
+    voter: "devflow-demo-owner",
+    targetType: "question",
+    target: "devflow-demo-question-react-rendering",
+    voteType: "upvote",
+  },
+  {
+    seedKey: "devflow-demo-vote-owner-container-query-down",
+    voter: "devflow-demo-owner",
+    targetType: "question",
+    target: "devflow-demo-question-container-queries",
+    voteType: "downvote",
+  },
+  {
+    seedKey: "devflow-demo-vote-mentor-playwright-up",
+    voter: "devflow-demo-mentor",
+    targetType: "question",
+    target: "devflow-demo-question-playwright-flaky",
+    voteType: "upvote",
+  },
+  {
+    seedKey: "devflow-demo-vote-mentor-optimistic-up",
+    voter: "devflow-demo-mentor",
+    targetType: "question",
+    target: "devflow-demo-question-optimistic-rollback",
+    voteType: "upvote",
+  },
+  {
+    seedKey: "devflow-demo-vote-architect-event-loop-up",
+    voter: "devflow-demo-architect",
+    targetType: "question",
+    target: "devflow-demo-question-event-loop",
+    voteType: "upvote",
+  },
+  {
+    seedKey: "devflow-demo-vote-architect-csp-up",
+    voter: "devflow-demo-architect",
+    targetType: "question",
+    target: "devflow-demo-question-csp",
+    voteType: "upvote",
+  },
+  {
+    seedKey: "devflow-demo-vote-architect-inp-up",
+    voter: "devflow-demo-architect",
+    targetType: "question",
+    target: "devflow-demo-question-inp",
+    voteType: "upvote",
+  },
+  {
+    seedKey: "devflow-demo-vote-mentor-lru-up",
+    voter: "devflow-demo-mentor",
+    targetType: "question",
+    target: "devflow-demo-question-lru",
+    voteType: "upvote",
+  },
 ];
 
 loadProjectEnv();
@@ -177,7 +420,9 @@ async function upsertAndFind(collection, filter, update) {
   const document = await collection.findOne(filter);
 
   if (!document) {
-    throw new Error(`Failed to read seeded document from ${collection.collectionName}.`);
+    throw new Error(
+      `Failed to read seeded document from ${collection.collectionName}.`,
+    );
   }
 
   return document;
@@ -231,6 +476,9 @@ async function seedDatabase() {
   }
 
   const now = new Date();
+  const seedDay = new Date(
+    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 12),
+  );
   const userCollection = database.collection("users");
   const accountCollection = database.collection("accounts");
   const tagCollection = database.collection("tags");
@@ -240,6 +488,9 @@ async function seedDatabase() {
   const voteCollection = database.collection("votes");
   const interactionCollection = database.collection("interactions");
   const collectionCollection = database.collection("collections");
+  const recommendationFeedbackCollection = database.collection(
+    "recommendationfeedbacks",
+  );
   const notificationCollection = database.collection("notifications");
 
   const userBySeedKey = new Map();
@@ -302,6 +553,9 @@ async function seedDatabase() {
   for (const question of questions) {
     const author = userBySeedKey.get(question.author);
     const questionTags = question.tags.map((tag) => tagByName.get(tag)._id);
+    const createdAt = new Date(
+      seedDay.getTime() - question.ageDays * 86_400_000,
+    );
     const document = await upsertAndFind(
       questionCollection,
       { seedKey: question.seedKey },
@@ -315,6 +569,7 @@ async function seedDatabase() {
             question.content,
           ),
           tags: questionTags,
+          createdAt,
           updatedAt: now,
         },
         $max: { views: question.views },
@@ -322,7 +577,6 @@ async function seedDatabase() {
           answers: 0,
           upvotes: 0,
           downvotes: 0,
-          createdAt: now,
         },
       },
     );
@@ -440,9 +694,7 @@ async function seedDatabase() {
   const acceptedQuestion = questionBySeedKey.get(
     "devflow-demo-question-next-cache",
   );
-  const acceptedAnswer = answerBySeedKey.get(
-    "devflow-demo-answer-next-cache",
-  );
+  const acceptedAnswer = answerBySeedKey.get("devflow-demo-answer-next-cache");
   await questionCollection.updateOne(
     { _id: acceptedQuestion._id },
     { $set: { acceptedAnswer: acceptedAnswer._id, updatedAt: now } },
@@ -458,33 +710,88 @@ async function seedDatabase() {
     );
   }
 
-  const demoQuestion = questionBySeedKey.get(
-    "devflow-demo-question-next-cache",
-  );
-  await interactionCollection.updateOne(
-    { seedKey: "devflow-demo-interaction-next-cache-view" },
+  const seededViews = [
     {
-      $set: {
+      seedKey: "devflow-demo-interaction-next-cache-view",
+      question: "devflow-demo-question-next-cache",
+      ageDays: 4,
+    },
+    {
+      seedKey: "devflow-demo-interaction-inp-view",
+      question: "devflow-demo-question-inp",
+      ageDays: 1,
+    },
+  ];
+  for (const view of seededViews) {
+    const question = questionBySeedKey.get(view.question);
+    const occurredAt = new Date(seedDay.getTime() - view.ageDays * 86_400_000);
+    await interactionCollection.updateOne(
+      {
         user: demoUser._id,
         action: "view",
-        actionId: demoQuestion._id,
+        actionId: question._id,
         actionType: "question",
-        updatedAt: now,
       },
-      $setOnInsert: { createdAt: now },
+      {
+        $set: { seedKey: view.seedKey, updatedAt: occurredAt },
+        $setOnInsert: {
+          user: demoUser._id,
+          action: "view",
+          actionId: question._id,
+          actionType: "question",
+          createdAt: occurredAt,
+        },
+      },
+      { upsert: true },
+    );
+  }
+
+  const seededCollections = [
+    {
+      seedKey: "devflow-demo-collection-next-cache",
+      question: "devflow-demo-question-next-cache",
+      ageDays: 4,
     },
-    { upsert: true },
+    {
+      seedKey: "devflow-demo-collection-optimistic",
+      question: "devflow-demo-question-optimistic-rollback",
+      ageDays: 2,
+    },
+  ];
+  for (const saved of seededCollections) {
+    const question = questionBySeedKey.get(saved.question);
+    const occurredAt = new Date(seedDay.getTime() - saved.ageDays * 86_400_000);
+    await collectionCollection.updateOne(
+      { author: demoUser._id, question: question._id },
+      {
+        $set: {
+          seedKey: saved.seedKey,
+          author: demoUser._id,
+          question: question._id,
+          updatedAt: occurredAt,
+        },
+        $setOnInsert: { createdAt: occurredAt },
+      },
+      { upsert: true },
+    );
+  }
+
+  const hiddenQuestion = questionBySeedKey.get(
+    "devflow-demo-question-stream-backpressure",
   );
-  await collectionCollection.updateOne(
-    { author: demoUser._id, question: demoQuestion._id },
+  await recommendationFeedbackCollection.updateOne(
+    { user: demoUser._id, question: hiddenQuestion._id },
     {
       $set: {
-        seedKey: "devflow-demo-collection-next-cache",
-        author: demoUser._id,
-        question: demoQuestion._id,
+        seedKey: "devflow-demo-feedback-stream-backpressure",
+        type: "not_interested",
         updatedAt: now,
       },
-      $setOnInsert: { createdAt: now },
+      $setOnInsert: {
+        user: demoUser._id,
+        question: hiddenQuestion._id,
+        createdAt: now,
+      },
     },
     { upsert: true },
   );
@@ -493,9 +800,7 @@ async function seedDatabase() {
   const answeredQuestion = questionBySeedKey.get(
     "devflow-demo-question-react-state",
   );
-  const createdAnswer = answerBySeedKey.get(
-    "devflow-demo-answer-react-state",
-  );
+  const createdAnswer = answerBySeedKey.get("devflow-demo-answer-react-state");
 
   const seededNotifications = [
     {

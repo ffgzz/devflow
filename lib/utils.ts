@@ -60,7 +60,7 @@ export const getDevIconClassName = (techName: string) => {
 };
 
 // 用于将一个 Date 对象转换为一个相对时间的字符串，例如 "5 minutes ago"、"2 hours ago" 等。
-export const getTimeStamp = (createdAt: Date) => {
+export const getTimeStamp = (createdAt: Date | string) => {
   const date = new Date(createdAt);
 
   const now = new Date();
