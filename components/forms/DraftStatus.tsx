@@ -2,6 +2,7 @@
 
 import type { DraftStatus as Status } from "@/hooks/useIndexedDbDraft";
 import { Button } from "../ui/button";
+import { useI18n } from "@/lib/i18n/client";
 
 interface Props {
   status: Status;
@@ -16,6 +17,7 @@ const DraftStatus = ({
   onRestore,
   onDiscard,
 }: Props) => {
+  const { locale, t } = useI18n();
   if (status === "found" && pendingUpdatedAt) {
     return (
       <div
@@ -24,16 +26,17 @@ const DraftStatus = ({
       >
         <div>
           <p className="body-semibold text-dark300_light700">
-            We found an unfinished draft
+            {t("We found an unfinished draft")}
           </p>
           <p className="small-regular text-dark400_light500">
-            Saved {new Date(pendingUpdatedAt).toLocaleString()}. Restoring it
-            will replace the values currently in this form.
+            {t("Saved {time}. Restoring it will replace the values currently in this form.", {
+              time: new Date(pendingUpdatedAt).toLocaleString(locale),
+            })}
           </p>
         </div>
         <div className="flex gap-2">
           <Button type="button" size="sm" onClick={onRestore}>
-            Restore
+            {t("Restore")}
           </Button>
           <Button
             type="button"
@@ -41,7 +44,7 @@ const DraftStatus = ({
             variant="outline"
             onClick={() => void onDiscard()}
           >
-            Discard
+            {t("Discard")}
           </Button>
         </div>
       </div>
@@ -64,7 +67,7 @@ const DraftStatus = ({
       aria-live="polite"
       className="small-regular text-dark400_light500"
     >
-      {message}
+      {t(message)}
     </p>
   );
 };

@@ -1,9 +1,12 @@
+"use client";
+
 import ROUTES from "@/constants/routes";
 import { getTimeStamp } from "@/lib/utils";
 import Link from "next/link";
 import Metric from "../Metric";
 import EditDeleteAction from "../user/EditDeleteAction";
 import TagCard from "./TagCard";
+import { useI18n } from "@/lib/i18n/client";
 
 export interface QuestionCardData {
   _id: string;
@@ -25,12 +28,13 @@ const QuestionCard = ({
   question: { _id, title, tags, author, createdAt, upvotes, answers, views },
   showActionBtns = false,
 }: Props) => {
+  const { locale, t } = useI18n();
   return (
-    <div className="card-wrapper rounded-[10px] p-9 sm:px-11">
+    <article className="card-wrapper rounded-[10px] p-9 sm:px-11">
       <div className="flex flex-col-reverse items-center justify-between gap-5 sm:flex-row">
         <div className="flex-1">
           <span className="subtle-regular text-dark400_light700 line-clamp-1 flex sm:hidden">
-            {getTimeStamp(createdAt)}
+            {getTimeStamp(createdAt, locale)}
           </span>
           <Link href={ROUTES.QUESTION(_id)} className="flex items-center gap-2">
             <h3 className="sm:h3-semibold base-semibold text-dark200_light900 line-camp-1 flex-1">
@@ -55,7 +59,7 @@ const QuestionCard = ({
           imgUrl={author.image || "/icons/avatar.svg"}
           alt={author.name}
           value={author.name}
-          title={`· asked ${getTimeStamp(createdAt)}`}
+          title={`· ${t("asked {time}", { time: getTimeStamp(createdAt, locale) })}`}
           href={ROUTES.PROFILE(author._id)}
           textStyles="body-medium text-dark400_light700"
           titleStyles="max-sm:hidden"
@@ -65,28 +69,28 @@ const QuestionCard = ({
         <div className="flex items-center gap-3 max-sm:flex-wrap">
           <Metric
             imgUrl="/icons/like.svg"
-            alt="like"
+            alt=""
             value={upvotes}
-            title=" Votes"
+            title={` ${t("Votes")}`}
             textStyles="small-medium text-dark400_light800"
           />
           <Metric
             imgUrl="/icons/message.svg"
-            alt="answer"
+            alt=""
             value={answers}
-            title=" Answers"
+            title={` ${t("Answers")}`}
             textStyles="small-medium text-dark400_light800"
           />
           <Metric
             imgUrl="/icons/eye.svg"
-            alt="views"
+            alt=""
             value={views}
-            title=" Views"
+            title={` ${t("Views")}`}
             textStyles="small-medium text-dark400_light800"
           />
         </div>
       </div>
-    </div>
+    </article>
   );
 };
 

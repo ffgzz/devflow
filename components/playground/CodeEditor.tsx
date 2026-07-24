@@ -2,6 +2,7 @@
 
 import { MAX_SOURCE_CHARS } from "@/lib/playground/sandbox-runtime.mjs";
 import { useId, useMemo, useRef } from "react";
+import { useI18n } from "@/lib/i18n/client";
 
 interface Props {
   label: string;
@@ -12,6 +13,7 @@ interface Props {
 }
 
 const CodeEditor = ({ label, language, value, onChange, onRun }: Props) => {
+  const { t } = useI18n();
   const gutterRef = useRef<HTMLDivElement>(null);
   const tabCaptureRef = useRef(true);
   const keyboardHelpId = useId();
@@ -23,13 +25,12 @@ const CodeEditor = ({ label, language, value, onChange, onRun }: Props) => {
   return (
     <div className="relative flex h-[520px] min-h-0 overflow-hidden rounded-xl border border-slate-800 bg-[#0b1020] shadow-inner">
       <span id={keyboardHelpId} className="sr-only">
-        Press Escape, then Tab to leave the editor. Shift plus Tab always moves
-        to the previous control.
+        {t("Press Escape, then Tab to leave the editor. Shift plus Tab always moves to the previous control.")}
       </span>
       <div
         ref={gutterRef}
         aria-hidden="true"
-        className="no-scrollbar w-14 shrink-0 overflow-hidden border-r border-slate-800 bg-[#090d18] px-3 py-4 text-right font-mono text-[13px] leading-6 text-slate-600 select-none"
+        className="no-scrollbar w-14 shrink-0 overflow-hidden border-r border-slate-800 bg-[#090d18] px-3 py-4 text-right font-mono text-[13px] leading-6 text-slate-400 select-none"
       >
         {lineNumbers.map((line) => (
           <div key={line}>{line}</div>
@@ -37,7 +38,7 @@ const CodeEditor = ({ label, language, value, onChange, onRun }: Props) => {
       </div>
 
       <textarea
-        aria-label={`${label} code editor`}
+        aria-label={t("{label} code editor", { label })}
         aria-describedby={keyboardHelpId}
         aria-keyshortcuts="Control+Enter Meta+Enter"
         data-language={language}

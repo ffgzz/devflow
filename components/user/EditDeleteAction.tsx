@@ -16,6 +16,7 @@ import { deleteQuestion } from "@/lib/actions/question.action";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { useI18n } from "@/lib/i18n/client";
 
 interface Props {
   type: "Question" | "Answer";
@@ -23,6 +24,7 @@ interface Props {
 }
 
 const EditDeleteAction = ({ type, itemId }: Props) => {
+  const { t } = useI18n();
   const router = useRouter();
 
   const handleEdit = async () => {
@@ -43,11 +45,11 @@ const EditDeleteAction = ({ type, itemId }: Props) => {
         throw new Error(result.errors?.message || `Failed to delete ${type}`);
       }
 
-      toast.success(`${type} deleted successfully!`, {
+      toast.success(t(`${type} deleted successfully!`), {
         description:
           type === "Question"
-            ? "Your question has been removed."
-            : "Your answer has been removed.",
+            ? t("Your question has been removed.")
+            : t("Your answer has been removed."),
         position: "top-center",
       });
 
@@ -56,9 +58,9 @@ const EditDeleteAction = ({ type, itemId }: Props) => {
       // 重新向服务端请求当前路由的 React Server Component 数据，让 Server Component 重新渲染，然后把新结果合并回当前页面。
       router.refresh();
     } catch (error) {
-      toast.error(`Failed to delete ${type.toLowerCase()}`, {
+      toast.error(t(`Failed to delete ${type.toLowerCase()}`), {
         description:
-          error instanceof Error ? error.message : "An unknown error occurred",
+          error instanceof Error ? t(error.message) : t("An unknown error occurred"),
         position: "top-center",
       });
     }
@@ -70,7 +72,7 @@ const EditDeleteAction = ({ type, itemId }: Props) => {
       {type === "Question" && (
         <Image
           src="/icons/edit.svg"
-          alt="Edit"
+          alt={t("Edit")}
           width={14}
           height={14}
           className="cursor-pointer object-contain"
@@ -80,24 +82,26 @@ const EditDeleteAction = ({ type, itemId }: Props) => {
 
       <AlertDialog>
         <AlertDialogTrigger asChild className="cursor-pointer">
-          <Image src="/icons/trash.svg" alt="trash" width={14} height={14} />
+          <Image src="/icons/trash.svg" alt={t("Delete")} width={14} height={14} />
         </AlertDialogTrigger>
         <AlertDialogContent className="background-light800_dark300">
           <AlertDialogHeader>
-            <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+            <AlertDialogTitle>{t("Are you absolutely sure?")}</AlertDialogTitle>
             <AlertDialogDescription>
-              This action cannot be undone. This will permanently delete your{" "}
-              {type === "Question" ? "question" : "answer"} and remove it from
-              your account from our servers.
+              {t(
+                type === "Question"
+                  ? "This action cannot be undone. Your question will be permanently deleted from our servers."
+                  : "This action cannot be undone. Your answer will be permanently deleted from our servers.",
+              )}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel className="btn">Cancel</AlertDialogCancel>
+            <AlertDialogCancel className="btn">{t("Cancel")}</AlertDialogCancel>
             <AlertDialogAction
               className="border-primary-100! bg-primary-500! text-light-800!"
               onClick={handleDelete}
             >
-              Continue
+              {t("Continue")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

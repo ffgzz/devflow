@@ -5,9 +5,11 @@ import { useState } from "react";
 
 import { GlobalSearchFilters } from "@/constants/filters";
 import { formUrlQuery } from "@/lib/url";
+import { useI18n } from "@/lib/i18n/client";
 
 const GlobalFilter = () => {
   const router = useRouter();
+  const { t } = useI18n();
   const searchParams = useSearchParams();
 
   const typeParams = searchParams.get("type");
@@ -31,7 +33,7 @@ const GlobalFilter = () => {
 
   return (
     <div className="flex items-center gap-5 px-5">
-      <p className="text-dark400_light900 body-medium">Type:</p>
+      <p className="text-dark400_light900 body-medium">{t("Type")}:</p>
       <div className="flex gap-3">
         {GlobalSearchFilters.map((item) => (
           <button
@@ -44,7 +46,7 @@ const GlobalFilter = () => {
             }`}
             onClick={() => handleTypeClick(item.value)}
           >
-            {item.name}
+            {t(item.name)}
           </button>
         ))}
       </div>

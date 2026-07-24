@@ -1,6 +1,7 @@
 "use client";
 
 import { setAnswerAcceptance } from "@/lib/actions/answer.action";
+import { useI18n } from "@/lib/i18n/client";
 import {
   createContext,
   useContext,
@@ -13,7 +14,9 @@ import { toast } from "sonner";
 
 interface AcceptanceContextValue {
   acceptedAnswerId: string | null;
+  // 当前用户是否有权限管理采纳状态
   canManageAcceptance: boolean;
+  // 当前正在更新采纳状态的答案 id
   pendingAnswerId: string | null;
   updateAcceptance: (answerId: string, accepted: boolean) => Promise<void>;
 }
@@ -33,6 +36,7 @@ export function AnswerAcceptanceProvider({
   canManageAcceptance,
   children,
 }: ProviderProps) {
+  const { t } = useI18n();
   const [acceptedAnswerId, setAcceptedAnswerId] = useState(
     initialAcceptedAnswerId,
   );
@@ -65,22 +69,20 @@ export function AnswerAcceptanceProvider({
 
       if (!result.success) {
         setAcceptedAnswerId(previousAcceptedAnswerId);
-        toast.error("Failed to update the accepted answer.", {
-          description: result.errors?.message || "Please try again later.",
+        toast.error(t("Failed to update the accepted answer."), {
+          description: t(result.errors?.message || "Please try again later."),
         });
         return;
       }
 
-      setAcceptedAnswerId(
-        result.data?.acceptedAnswerId ?? optimisticAnswerId,
-      );
+      setAcceptedAnswerId(result.data?.acceptedAnswerId ?? optimisticAnswerId);
       toast.success(
-        accepted ? "Answer accepted successfully." : "Acceptance removed.",
+        t(accepted ? "Answer accepted successfully." : "Acceptance removed."),
       );
     } catch {
       setAcceptedAnswerId(previousAcceptedAnswerId);
-      toast.error("Failed to update the accepted answer.", {
-        description: "Please try again later.",
+      toast.error(t("Failed to update the accepted answer."), {
+        description: t("Please try again later."),
       });
     } finally {
       requestInFlight.current = false;
@@ -108,6 +110,7 @@ interface ControlProps {
 
 export function AnswerAcceptanceControl({ answerId }: ControlProps) {
   const context = useContext(AcceptanceContext);
+  const { t } = useI18n();
 
   if (!context) return null;
 
@@ -127,7 +130,7 @@ export function AnswerAcceptanceControl({ answerId }: ControlProps) {
       {isAccepted && (
         <span className="inline-flex items-center gap-1.5 rounded-full bg-green-100 px-3 py-1.5 text-sm font-semibold text-green-700 dark:bg-green-900/30 dark:text-green-300">
           <span aria-hidden="true">✓</span>
-          Accepted answer
+          {t("Accepted answer")}
         </span>
       )}
 
@@ -140,10 +143,10 @@ export function AnswerAcceptanceControl({ answerId }: ControlProps) {
           onClick={() => void updateAcceptance(answerId, !isAccepted)}
         >
           {pendingAnswerId === answerId
-            ? "Updating..."
+            ? t("Updating...")
             : isAccepted
-              ? "Unaccept answer"
-              : "Accept answer"}
+              ? t("Unaccept answer")
+              : t("Accept answer")}
         </button>
       )}
     </div>

@@ -1,0 +1,17 @@
+.git
+.github
+.next
+.lighthouseci
+coverage
+node_modules
+playwright-report
+test-results
+
+.env
+.env.*
+!.env.example
+
+npm-debug.log*
+pnpm-debug.log*
+README.md
+

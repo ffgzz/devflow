@@ -11,13 +11,23 @@ import {
   QUESTION_FEED_FILTERS,
   type QuestionFeedFilter,
 } from "@/lib/recommendation/types";
+import { createPageMetadata } from "@/lib/seo";
 import Link from "next/link";
+import { getI18n } from "@/lib/i18n/server";
+
+export const metadata = createPageMetadata({
+  title: "Developer Questions & Answers",
+  description:
+    "Explore practical programming questions, community answers, and explainable recommendations across modern frontend development.",
+  pathname: "/",
+});
 
 interface SearchParams {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }
 
 export default async function Home({ searchParams }: SearchParams) {
+  const { t } = await getI18n();
   const params = await searchParams;
   const rawQuery = Array.isArray(params.query) ? params.query[0] : params.query;
   const rawFilter = Array.isArray(params.filter)
@@ -41,13 +51,13 @@ export default async function Home({ searchParams }: SearchParams) {
     <>
       <section className="flex w-full flex-col-reverse justify-between gap-4 sm:flex-row sm:items-center">
         <h1 className="h1-bold text-dark100_light900">
-          {filter === "recommended" ? "For You" : "All Questions"}
+          {t(filter === "recommended" ? "For You" : "All Questions")}
         </h1>
         <Button
           asChild
           className="primary-gradient min-h-[46px] px-4 py-3 text-light-900!"
         >
-          <Link href={ROUTES.ASK_QUESTION}>Ask a Question</Link>
+          <Link href={ROUTES.ASK_QUESTION}>{t("Ask a Question")}</Link>
         </Button>
       </section>
 
@@ -55,7 +65,7 @@ export default async function Home({ searchParams }: SearchParams) {
         <LocalSearch
           route="/"
           imgSrc="/icons/search.svg"
-          placeholder="Search questions..."
+          placeholder={t("Search questions...")}
           otherClasses="flex-1"
         />
 

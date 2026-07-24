@@ -1,12 +1,15 @@
 "use client";
 
 import ROUTES from "@/constants/routes";
+import { reportHandledClientError } from "@/lib/observability/client";
 import { signIn } from "next-auth/react";
 import Image from "next/image";
 import { toast } from "sonner";
 import { Button } from "../ui/button";
+import { useI18n } from "@/lib/i18n/client";
 
 const SocialAuthForm = () => {
+  const { t } = useI18n();
   const buttonClass =
     "background-dark400_light900 body-medium text-dark200_light800 min-h-12 flex-1 rounded-2 px-4 py-3.5";
 
@@ -18,12 +21,9 @@ const SocialAuthForm = () => {
 
       await signIn(provider, { redirectTo: ROUTES.HOME });
     } catch (error) {
-      console.error(error);
-      toast.error("Sign-in Failed", {
-        description:
-          error instanceof Error
-            ? error.message
-            : "An error occurred during sign-in",
+      reportHandledClientError(error);
+      toast.error(t("Sign-in Failed"), {
+        description: t("The provider could not complete sign-in. Please retry."),
         position: "top-center",
       });
     }
@@ -34,23 +34,23 @@ const SocialAuthForm = () => {
       <Button className={buttonClass} onClick={() => handleSignIn("github")}>
         <Image
           src="/icons/github.svg"
-          alt="GitHub Logo"
+          alt={t("GitHub Logo")}
           width={20}
           height={20}
           className="s mr-2.5 object-contain"
         />
-        <span>Log in with GitHub</span>
+        <span>{t("Log in with GitHub")}</span>
       </Button>
 
       <Button className={buttonClass} onClick={() => handleSignIn("google")}>
         <Image
           src="/icons/google.svg"
-          alt="Google Logo"
+          alt={t("Google Logo")}
           width={20}
           height={20}
           className=" mr-2.5 object-contain"
         />
-        <span>Log in with Google</span>
+        <span>{t("Log in with Google")}</span>
       </Button>
     </div>
   );

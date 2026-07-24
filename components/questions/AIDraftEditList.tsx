@@ -9,6 +9,7 @@ import {
   SparklesIcon,
   Undo2Icon,
 } from "lucide-react";
+import { useI18n } from "@/lib/i18n/client";
 
 interface Props {
   edits: DraftEdit[];
@@ -37,6 +38,7 @@ const AIDraftEditList = ({
   onApply,
   onUndo,
 }: Props) => {
+  const { t } = useI18n();
   if (edits.length === 0) return null;
 
   return (
@@ -44,7 +46,7 @@ const AIDraftEditList = ({
       <div className="mb-3 flex items-center gap-2">
         <SparklesIcon aria-hidden="true" className="size-4 text-primary-500" />
         <h3 className="base-semibold text-dark200_light900">
-          Suggested draft changes
+          {t("Suggested draft changes")}
         </h3>
       </div>
 
@@ -56,7 +58,7 @@ const AIDraftEditList = ({
           const headingId = `draft-edit-${edit.id}`;
           const undoHintId = `${headingId}-undo-hint`;
           const targetLabel =
-            edit.target === "title" ? "Title" : "Question body";
+            t(edit.target === "title" ? "Title" : "Question body");
 
           return (
             <article
@@ -69,7 +71,7 @@ const AIDraftEditList = ({
                   <div className="mb-2 flex flex-wrap items-center gap-2">
                     <Badge variant="outline">{targetLabel}</Badge>
                     <Badge variant="secondary">
-                      {categoryLabels[edit.category]}
+                      {t(categoryLabels[edit.category])}
                     </Badge>
                     {isApplied && (
                       <Badge className="bg-green-600 text-white dark:bg-green-700">
@@ -77,7 +79,7 @@ const AIDraftEditList = ({
                           aria-hidden="true"
                           data-icon="inline-start"
                         />
-                        Applied
+                        {t("Applied")}
                       </Badge>
                     )}
                   </div>
@@ -99,12 +101,12 @@ const AIDraftEditList = ({
                     size="sm"
                     disabled={!canUndo}
                     onClick={() => onUndo(edit)}
-                    aria-label={`Undo change: ${edit.label}`}
+                    aria-label={`${t("Undo change")}: ${edit.label}`}
                     aria-describedby={!canUndo ? undoHintId : undefined}
                     className="self-start"
                   >
                     <Undo2Icon aria-hidden="true" />
-                    Undo
+                    {t("Undo")}
                   </Button>
                 ) : (
                   <Button
@@ -112,11 +114,11 @@ const AIDraftEditList = ({
                     size="sm"
                     disabled={!canApply}
                     onClick={() => onApply(edit)}
-                    aria-label={`Apply change: ${edit.label}`}
+                    aria-label={`${t("Apply change")}: ${edit.label}`}
                     className="self-start"
                   >
                     <SparklesIcon aria-hidden="true" />
-                    Apply change
+                    {t("Apply change")}
                   </Button>
                 )}
               </div>
@@ -126,14 +128,14 @@ const AIDraftEditList = ({
                   id={undoHintId}
                   className="small-medium mt-3 text-amber-700 dark:text-amber-300"
                 >
-                  Undo the later change to this field first.
+                  {t("Undo the later change to this field first.")}
                 </p>
               )}
 
               <div className="mt-4 grid min-w-0 gap-3 md:grid-cols-2">
                 <div className="min-w-0 rounded-lg border border-red-200 bg-red-50 p-3 dark:border-red-900 dark:bg-red-950/30">
                   <p className="mb-2 text-xs font-semibold tracking-wide text-red-700 uppercase dark:text-red-300">
-                    Before
+                    {t("Before")}
                   </p>
                   <del className="block whitespace-pre-wrap break-words font-mono text-sm text-red-950 dark:text-red-100">
                     {edit.before}
@@ -142,7 +144,7 @@ const AIDraftEditList = ({
 
                 <div className="min-w-0 rounded-lg border border-green-200 bg-green-50 p-3 dark:border-green-900 dark:bg-green-950/30">
                   <p className="mb-2 text-xs font-semibold tracking-wide text-green-700 uppercase dark:text-green-300">
-                    After
+                    {t("After")}
                   </p>
                   <ins className="block whitespace-pre-wrap break-words font-mono text-sm text-green-950 no-underline dark:text-green-100">
                     {edit.after}
@@ -159,7 +161,7 @@ const AIDraftEditList = ({
                     aria-hidden="true"
                     className="mt-0.5 size-4 shrink-0"
                   />
-                  <p>{conflict}</p>
+                  <p>{t(conflict)}</p>
                 </div>
               )}
             </article>

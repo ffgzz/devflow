@@ -21,6 +21,7 @@ import {
   type QuestionAnalysisPartial,
   type QuestionWorkbenchDraft,
 } from "@/lib/ai/question-analysis-schema";
+import { useI18n } from "@/lib/i18n/client";
 import {
   AlertTriangleIcon,
   CheckCircle2Icon,
@@ -65,44 +66,42 @@ const createEmptyEditStacks = (): DraftEditStacks => ({
   content: [],
 });
 
-const resetTimeLabel = (value: string) =>
-  new Date(value).toLocaleTimeString([], {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-
-const scoreLabel = (score: number) => {
-  if (score >= 85) return "Excellent";
-  if (score >= 70) return "Strong";
-  if (score >= 50) return "Needs more detail";
-  return "Early draft";
+const scoreLabel = (score: number, t: (key: string) => string) => {
+  if (score >= 85) return t("Excellent");
+  if (score >= 70) return t("Strong");
+  if (score >= 50) return t("Needs more detail");
+  return t("Early draft");
 };
 
-const ScoreRing = ({ score }: { score: number }) => (
-  <div className="flex shrink-0 flex-col items-center gap-2">
-    <div
-      role="meter"
-      aria-label={`Question quality score: ${score} out of 100`}
-      aria-valuemin={0}
-      aria-valuemax={100}
-      aria-valuenow={score}
-      className="flex-center size-24 rounded-full p-2"
-      style={{
-        background: `conic-gradient(#ff7000 ${score * 3.6}deg, rgba(133, 142, 173, 0.2) 0deg)`,
-      }}
-    >
-      <div className="background-light900_dark300 flex-center size-full flex-col rounded-full">
-        <strong className="text-dark200_light900 text-2xl">{score}</strong>
-        <span className="text-dark400_light700 text-xs">/ 100</span>
+const ScoreRing = ({ score }: { score: number }) => {
+  const { t } = useI18n();
+  return (
+    <div className="flex shrink-0 flex-col items-center gap-2">
+      <div
+        role="meter"
+        aria-label={t("Question quality score: {score} out of 100", { score })}
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={score}
+        className="flex-center size-24 rounded-full p-2"
+        style={{
+          background: `conic-gradient(#ff7000 ${score * 3.6}deg, rgba(133, 142, 173, 0.2) 0deg)`,
+        }}
+      >
+        <div className="background-light900_dark300 flex-center size-full flex-col rounded-full">
+          <strong className="text-dark200_light900 text-2xl">{score}</strong>
+          <span className="text-dark400_light700 text-xs">/ 100</span>
+        </div>
       </div>
+      <span className="small-semibold text-dark300_light700">
+        {scoreLabel(score, t)}
+      </span>
     </div>
-    <span className="small-semibold text-dark300_light700">
-      {scoreLabel(score)}
-    </span>
-  </div>
-);
+  );
+};
 
 const DimensionList = ({ analysis }: { analysis: QuestionAnalysisPartial }) => {
+  const { t } = useI18n();
   const dimensions = QUESTION_ANALYSIS_DIMENSION_KEYS.flatMap((key) => {
     const dimension = analysis.dimensions?.[key];
     return dimension ? [{ key, dimension }] : [];
@@ -125,7 +124,7 @@ const DimensionList = ({ analysis }: { analysis: QuestionAnalysisPartial }) => {
           >
             <div className="mb-2 flex items-center justify-between gap-3">
               <p className="small-semibold text-dark300_light700">
-                {QUESTION_ANALYSIS_DIMENSION_LABELS[key]}
+                {t(QUESTION_ANALYSIS_DIMENSION_LABELS[key])}
               </p>
               <span className="small-semibold text-primary-500">
                 {value === undefined ? "..." : `${value}/20`}
@@ -133,7 +132,7 @@ const DimensionList = ({ analysis }: { analysis: QuestionAnalysisPartial }) => {
             </div>
             <div
               role="meter"
-              aria-label={QUESTION_ANALYSIS_DIMENSION_LABELS[key]}
+              aria-label={t(QUESTION_ANALYSIS_DIMENSION_LABELS[key])}
               aria-valuemin={0}
               aria-valuemax={20}
               aria-valuenow={value}
@@ -145,7 +144,7 @@ const DimensionList = ({ analysis }: { analysis: QuestionAnalysisPartial }) => {
               />
             </div>
             <p className="small-regular text-dark400_light700">
-              {dimension.feedback ?? "Reviewing this dimension..."}
+              {dimension.feedback ?? t("Reviewing this dimension...")}
             </p>
           </div>
         );
@@ -164,6 +163,20 @@ const LoadingBlock = ({ label }: { label: string }) => (
   </div>
 );
 
+// 提问页面里的 AI 教练控制面板
+// 这个组件主要负责：
+/*
+  获取当前问题草稿。
+  调用 AI 分析。
+  流式展示分析进度和结果。
+  展示五个质量维度和总分。
+  展示缺失信息建议。
+  展示 AI 推荐的标题/正文修改。
+  安全地应用和撤销修改。
+  推荐标签并安全添加。
+  检查可能重复的问题。
+  防止用户修改草稿后，继续应用过期的 AI 建议。
+ */
 const AIQuestionWorkbench = ({
   title,
   content,
@@ -172,6 +185,7 @@ const AIQuestionWorkbench = ({
   onAddTag,
   onMutateDraft,
 }: Props) => {
+  const { locale, t } = useI18n();
   const headingId = useId();
   const draft = useMemo(
     () => ({ title, content, tags, questionId }),
@@ -230,10 +244,10 @@ const AIQuestionWorkbench = ({
   }, [editStacks]);
   const analyzeButtonLabel =
     status === "streaming"
-      ? "Analyzing..."
+      ? t("Analyzing...")
       : status === "idle"
-        ? "Analyze draft"
-        : "Analyze again";
+        ? t("Analyze draft")
+        : t("Analyze again");
 
   useLayoutEffect(() => {
     currentDraftRef.current = draft;
@@ -257,7 +271,9 @@ const AIQuestionWorkbench = ({
       if (!isCurrentAnalysisDraft(previousDraft)) {
         setEditConflict(
           edit.id,
-          "The draft has changed since this analysis. Analyze it again before applying this suggestion.",
+          t(
+            "The draft has changed since this analysis. Analyze it again before applying this suggestion.",
+          ),
         );
         return;
       }
@@ -269,7 +285,9 @@ const AIQuestionWorkbench = ({
       if (!candidate) {
         setEditConflict(
           edit.id,
-          "The exact original text is no longer available, so no change was made.",
+          t(
+            "The exact original text is no longer available, so no change was made.",
+          ),
         );
         return;
       }
@@ -308,6 +326,7 @@ const AIQuestionWorkbench = ({
       isCurrentAnalysisDraft,
       onMutateDraft,
       setEditConflict,
+      t,
     ],
   );
 
@@ -320,7 +339,9 @@ const AIQuestionWorkbench = ({
       if (fieldStack[fieldStack.length - 1] !== edit.id) {
         setEditConflict(
           edit.id,
-          "Undo the later change to this field first. Your draft was not changed.",
+          t(
+            "Undo the later change to this field first. Your draft was not changed.",
+          ),
         );
         return;
       }
@@ -333,7 +354,9 @@ const AIQuestionWorkbench = ({
       if (!candidate) {
         setEditConflict(
           edit.id,
-          "Undo was blocked because this field changed afterward. Your newer text was kept.",
+          t(
+            "Undo was blocked because this field changed afterward. Your newer text was kept.",
+          ),
         );
         return;
       }
@@ -371,6 +394,7 @@ const AIQuestionWorkbench = ({
       editStacks,
       onMutateDraft,
       setEditConflict,
+      t,
     ],
   );
 
@@ -379,7 +403,9 @@ const AIQuestionWorkbench = ({
       const previousDraft = currentDraftRef.current;
       if (!isCurrentAnalysisDraft(previousDraft)) {
         setTagMutationError(
-          "The draft changed after this analysis. Analyze it again before adding a suggested tag.",
+          t(
+            "The draft changed after this analysis. Analyze it again before adding a suggested tag.",
+          ),
         );
         return;
       }
@@ -394,7 +420,7 @@ const AIQuestionWorkbench = ({
       acknowledgeDraftMutation(outcome.previousDraft, outcome.draft);
       setTagMutationError(undefined);
     },
-    [acknowledgeDraftMutation, isCurrentAnalysisDraft, onAddTag],
+    [acknowledgeDraftMutation, isCurrentAnalysisDraft, onAddTag, t],
   );
 
   return (
@@ -414,19 +440,19 @@ const AIQuestionWorkbench = ({
                 id={headingId}
                 className="base-semibold text-dark200_light900"
               >
-                AI Question Coach
+                {t("AI Question Coach")}
               </h2>
               <Badge
                 variant="outline"
                 className="border-primary-500/30 text-primary-500"
               >
-                AI beta
+                {t("AI beta")}
               </Badge>
             </div>
             <p className="small-regular text-dark400_light700">
-              Get a live quality review, missing-detail checklist, tag ideas,
-              safe local text changes, and possible duplicate questions. Nothing
-              is changed unless you choose it.
+              {t(
+                "Get a live quality review, missing-detail checklist, tag ideas, safe local text changes, and possible duplicate questions. Nothing is changed unless you choose it.",
+              )}
             </p>
           </div>
 
@@ -457,7 +483,7 @@ const AIQuestionWorkbench = ({
                 className="min-h-11 px-4"
               >
                 <SquareIcon aria-hidden="true" className="fill-current" />
-                Stop AI
+                {t("Stop AI")}
               </Button>
             )}
           </div>
@@ -469,18 +495,18 @@ const AIQuestionWorkbench = ({
             aria-live="polite"
             className="small-medium text-dark300_light700"
           >
-            {stage}
+            {t(stage)}
           </p>
           <div className="flex flex-wrap items-center gap-2">
             {status === "streaming" && attempt > 0 && (
               <Badge variant="secondary">
-                Attempt {attempt}/{maxAttempts}
+                {t("Attempt {attempt}/{maxAttempts}", { attempt, maxAttempts })}
               </Badge>
             )}
-            {retry && <Badge variant="outline">Retry scheduled</Badge>}
+            {retry && <Badge variant="outline">{t("Retry scheduled")}</Badge>}
             {quotaLoading && (
               <p className="small-regular text-dark400_light700">
-                Checking AI quota...
+                {t("Checking AI quota...")}
               </p>
             )}
           </div>
@@ -489,25 +515,41 @@ const AIQuestionWorkbench = ({
           <div className="mt-3 grid gap-2 sm:grid-cols-2">
             <div className="rounded-lg border border-light-700 bg-light-900/60 px-3 py-2 dark:border-dark-400 dark:bg-dark-300/50">
               <p className="small-semibold text-dark300_light700">
-                Hourly quota: {quota.hourRemaining}/{quota.hourLimit} left
+                {t("Hourly quota: {remaining}/{limit} left", {
+                  remaining: quota.hourRemaining,
+                  limit: quota.hourLimit,
+                })}
               </p>
               <p className="small-regular text-dark400_light700">
-                Resets at {resetTimeLabel(quota.hourResetAt)}
+                {t("Resets at {time}", {
+                  time: new Date(quota.hourResetAt).toLocaleTimeString(locale, {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  }),
+                })}
               </p>
             </div>
             <div className="rounded-lg border border-light-700 bg-light-900/60 px-3 py-2 dark:border-dark-400 dark:bg-dark-300/50">
               <p className="small-semibold text-dark300_light700">
-                Daily quota: {quota.dayRemaining}/{quota.dayLimit} left
+                {t("Daily quota: {remaining}/{limit} left", {
+                  remaining: quota.dayRemaining,
+                  limit: quota.dayLimit,
+                })}
               </p>
               <p className="small-regular text-dark400_light700">
-                Resets at {resetTimeLabel(quota.dayResetAt)}
+                {t("Resets at {time}", {
+                  time: new Date(quota.dayResetAt).toLocaleTimeString(locale, {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  }),
+                })}
               </p>
             </div>
           </div>
         )}
         {status !== "streaming" && validationMessage && (
           <p className="small-regular mt-2 text-dark400_light700">
-            {validationMessage}
+            {t(validationMessage)}
           </p>
         )}
       </div>
@@ -520,8 +562,9 @@ const AIQuestionWorkbench = ({
               className="mt-0.5 size-4 shrink-0"
             />
             <p>
-              The title, details, or tags changed after this run. Analyze again
-              before applying its suggestions.
+              {t(
+                "The title, details, or tags changed after this run. Analyze again before applying its suggestions.",
+              )}
             </p>
           </div>
         )}
@@ -533,10 +576,14 @@ const AIQuestionWorkbench = ({
           >
             <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
               <div>
-                <p>{error.message}</p>
+                <p>{t(error.message)}</p>
                 {quotaBlockedUntil && (
                   <p className="mt-1 font-medium">
-                    {quotaScope === "day" ? "Daily" : "Hourly"} quota resets at{" "}
+                    {t(
+                      quotaScope === "day"
+                        ? "Daily quota resets at"
+                        : "Hourly quota resets at",
+                    )}{" "}
                     {new Date(quotaBlockedUntil).toLocaleTimeString([], {
                       hour: "2-digit",
                       minute: "2-digit",
@@ -555,7 +602,7 @@ const AIQuestionWorkbench = ({
                   className="self-start border-red-300 sm:self-auto dark:border-red-800"
                 >
                   <RefreshCwIcon aria-hidden="true" />
-                  Retry
+                  {t("Retry")}
                 </Button>
               )}
             </div>
@@ -566,8 +613,8 @@ const AIQuestionWorkbench = ({
           <LoadingBlock
             label={
               retry
-                ? "Waiting for the controlled retry..."
-                : "Waiting for the first AI analysis event..."
+                ? t("Waiting for the controlled retry...")
+                : t("Waiting for the first AI analysis event...")
             }
           />
         )}
@@ -578,10 +625,10 @@ const AIQuestionWorkbench = ({
               {result && <ScoreRing score={result.qualityScore} />}
               <div className="min-w-0 flex-1">
                 <h3 className="base-semibold text-dark200_light900">
-                  Quality review
+                  {t("Quality review")}
                 </h3>
                 <p className="small-regular text-dark400_light700 mt-1">
-                  {partial.summary ?? "Building a structured review..."}
+                  {partial.summary ?? t("Building a structured review...")}
                 </p>
               </div>
             </div>
@@ -591,7 +638,7 @@ const AIQuestionWorkbench = ({
             {partial.missingItems && partial.missingItems.length > 0 && (
               <div>
                 <h3 className="base-semibold text-dark200_light900 mb-3">
-                  Details worth adding
+                  {t("Details worth adding")}
                 </h3>
                 <div className="space-y-2">
                   {partial.missingItems.flatMap((item, index) =>
@@ -612,7 +659,7 @@ const AIQuestionWorkbench = ({
                                   : "secondary"
                               }
                             >
-                              {item.severity}
+                              {t(item.severity)}
                             </Badge>
                           )}
                         </div>
@@ -623,7 +670,7 @@ const AIQuestionWorkbench = ({
                         )}
                         {item.suggestion && (
                           <p className="small-medium text-dark300_light700 mt-1">
-                            Try: {item.suggestion}
+                            {t("Try")}: {item.suggestion}
                           </p>
                         )}
                       </div>
@@ -655,7 +702,7 @@ const AIQuestionWorkbench = ({
                     className="size-4 text-primary-500"
                   />
                   <h3 className="base-semibold text-dark200_light900">
-                    Suggested tags
+                    {t("Suggested tags")}
                   </h3>
                 </div>
                 <div className="grid gap-2 sm:grid-cols-2">
@@ -678,8 +725,10 @@ const AIQuestionWorkbench = ({
                             disabled={isDisabled}
                             aria-label={
                               isAdded
-                                ? `${suggestion.name} is already added`
-                                : `Add tag ${suggestion.name}`
+                                ? t("{name} is already added", {
+                                    name: suggestion.name,
+                                  })
+                                : t("Add tag {name}", { name: suggestion.name })
                             }
                             onClick={() =>
                               handleAddSuggestedTag(suggestion.name)
@@ -706,7 +755,9 @@ const AIQuestionWorkbench = ({
                 </div>
                 {tags.length >= 3 && (
                   <p className="small-regular text-dark400_light700 mt-2">
-                    Remove a tag first if you want to use another suggestion.
+                    {t(
+                      "Remove a tag first if you want to use another suggestion.",
+                    )}
                   </p>
                 )}
                 {tagMutationError && (
@@ -714,7 +765,7 @@ const AIQuestionWorkbench = ({
                     role="alert"
                     className="mt-2 text-sm text-amber-700 dark:text-amber-300"
                   >
-                    {tagMutationError}
+                    {t(tagMutationError)}
                   </p>
                 )}
               </div>
@@ -729,7 +780,7 @@ const AIQuestionWorkbench = ({
               className="size-4 text-primary-500"
             />
             <h3 className="base-semibold text-dark200_light900">
-              Possibly similar questions
+              {t("Possibly similar questions")}
             </h3>
           </div>
 
@@ -740,19 +791,20 @@ const AIQuestionWorkbench = ({
                 className="mt-0.5 size-4 shrink-0"
               />
               <p>
-                This similarity check uses an earlier draft or tag set. Analyze
-                again to refresh possible duplicates.
+                {t(
+                  "This similarity check uses an earlier draft or tag set. Analyze again to refresh possible duplicates.",
+                )}
               </p>
             </div>
           )}
 
           {!isSimilarityStale && similarityStatus === "idle" && (
             <p className="small-regular text-dark400_light700">
-              Similar questions are checked when you analyze the draft.
+              {t("Similar questions are checked when you analyze the draft.")}
             </p>
           )}
           {!isSimilarityStale && similarityStatus === "loading" && (
-            <LoadingBlock label="Checking existing questions locally..." />
+            <LoadingBlock label={t("Checking existing questions locally...")} />
           )}
           {!isSimilarityStale &&
             similarityStatus === "error" &&
@@ -761,14 +813,16 @@ const AIQuestionWorkbench = ({
                 role="alert"
                 className="text-sm text-red-600 dark:text-red-300"
               >
-                {similarityError}
+                {t(similarityError)}
               </p>
             )}
           {!isSimilarityStale &&
             similarityStatus === "complete" &&
             similarQuestions.length === 0 && (
               <p className="small-regular text-dark400_light700">
-                No strong match was found. This does not block you from posting.
+                {t(
+                  "No strong match was found. This does not block you from posting.",
+                )}
               </p>
             )}
           {!isSimilarityStale && similarQuestions.length > 0 && (
@@ -787,7 +841,10 @@ const AIQuestionWorkbench = ({
                         className="small-semibold text-dark200_light900 hover:text-primary-500"
                       >
                         {question.title}
-                        <span className="sr-only"> (opens in a new tab)</span>
+                        <span className="sr-only">
+                          {" "}
+                          {t("(opens in a new tab)")}
+                        </span>
                         <ExternalLinkIcon
                           aria-hidden="true"
                           className="ml-1 inline size-3.5"
@@ -796,7 +853,7 @@ const AIQuestionWorkbench = ({
                       <div className="mt-2 flex flex-wrap gap-1.5">
                         {question.reasons.map((reason) => (
                           <Badge key={reason.type} variant="secondary">
-                            {reason.label}
+                            {t(reason.label)}
                             {reason.values.length > 0
                               ? `: ${reason.values.join(", ")}`
                               : ""}
@@ -808,7 +865,7 @@ const AIQuestionWorkbench = ({
                       variant="outline"
                       className="h-fit shrink-0 border-primary-500/30 text-primary-500"
                     >
-                      {question.score}% match
+                      {question.score}% {t("match")}
                     </Badge>
                   </div>
                   <div className="text-dark400_light700 mt-3 flex flex-wrap gap-4 text-xs">
@@ -817,11 +874,11 @@ const AIQuestionWorkbench = ({
                         aria-hidden="true"
                         className="size-3.5"
                       />
-                      {question.answers} answers
+                      {question.answers} {t("answers")}
                     </span>
                     <span className="flex items-center gap-1">
                       <ThumbsUpIcon aria-hidden="true" className="size-3.5" />
-                      {question.upvotes} votes
+                      {question.upvotes} {t("votes")}
                     </span>
                     {question.hasAcceptedAnswer && (
                       <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
@@ -829,7 +886,7 @@ const AIQuestionWorkbench = ({
                           aria-hidden="true"
                           className="size-3.5"
                         />
-                        Solved
+                        {t("Solved")}
                       </span>
                     )}
                   </div>

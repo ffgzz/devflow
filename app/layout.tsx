@@ -1,5 +1,15 @@
 import { auth } from "@/auth";
+import WebVitals from "@/components/observability/WebVitals";
 import { Toaster } from "@/components/ui/sonner";
+import { I18nProvider } from "@/lib/i18n/client";
+import { getLocale } from "@/lib/i18n/server";
+import {
+  absoluteUrl,
+  serializeJsonLd,
+  SITE_DESCRIPTION,
+  SITE_NAME,
+  SITE_URL,
+} from "@/lib/seo";
 import { cn } from "@/lib/utils";
 import type { Metadata } from "next";
 import { SessionProvider } from "next-auth/react";
@@ -20,11 +30,54 @@ const spaceGrotesk = localFont({
 });
 
 export const metadata: Metadata = {
-  title: "DevFlow",
-  description:
-    "A community-driven platform for asking and answering programming questions. Get help, share knowledge, and collaborate with developers from around the world. Explore topics in web development, mobile app development, algorithms, data structures, and more.",
-  icons: {
-    icon: "/images/site-logo.svg",
+  metadataBase: SITE_URL,
+  title: {
+    default: "DevFlow — Ask, share, and build together",
+    template: "%s | DevFlow",
+  },
+  description: SITE_DESCRIPTION,
+  applicationName: SITE_NAME,
+  keywords: [
+    "developer community",
+    "programming questions",
+    "frontend development",
+    "JavaScript",
+    "React",
+    "Next.js",
+    "browser code playground",
+  ],
+  authors: [{ name: "DevFlow Community" }],
+  creator: "DevFlow Community",
+  category: "technology",
+  formatDetection: {
+    address: false,
+    email: false,
+    telephone: false,
+  },
+  manifest: "/manifest.webmanifest",
+  openGraph: {
+    type: "website",
+    locale: "en_US",
+    url: "/",
+    siteName: SITE_NAME,
+    title: "DevFlow — Ask, share, and build together",
+    description: SITE_DESCRIPTION,
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "DevFlow — Ask, share, and build together",
+    description: SITE_DESCRIPTION,
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      "max-image-preview": "large",
+      "max-snippet": -1,
+      "max-video-preview": -1,
+    },
   },
 };
 
@@ -34,10 +87,28 @@ export default async function RootLayout({
   children: React.ReactNode;
 }>) {
   const session = await auth();
+  const locale = await getLocale();
+  const websiteJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    "@id": `${absoluteUrl("/")}#website`,
+    url: absoluteUrl("/"),
+    name: SITE_NAME,
+    description: SITE_DESCRIPTION,
+    inLanguage: locale,
+    potentialAction: {
+      "@type": "SearchAction",
+      target: {
+        "@type": "EntryPoint",
+        urlTemplate: `${absoluteUrl("/")}?query={search_term_string}`,
+      },
+      "query-input": "required name=search_term_string",
+    },
+  };
 
   return (
     <html
-      lang="en"
+      lang={locale}
       className={cn(
         "h-full",
         "antialiased",
@@ -56,8 +127,20 @@ export default async function RootLayout({
         />
       </head>
       <body className="min-h-full flex flex-col">
+        <WebVitals />
+        <a
+          href="#main-content"
+          className="primary-gradient fixed left-4 top-4 z-[100] -translate-y-24 rounded-lg px-4 py-3 font-semibold text-white shadow-lg transition-transform focus:translate-y-0 motion-reduce:transition-none"
+        >
+          {locale === "zh-CN" ? "跳到主要内容" : "Skip to main content"}
+        </a>
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: serializeJsonLd(websiteJsonLd) }}
+        />
         {/* SessionProvider 用来在客户端组件中提供认证上下文 */}
         <SessionProvider session={session}>
+          <I18nProvider initialLocale={locale}>
           {/* 
           ThemeProvider 用来给整个应用提供主题上下文，并在页面初始化时同步 html 上的主题标记。
           这里接入的是 next-themes，它会读取用户保存的主题设置，或跟随系统深浅色偏好，
@@ -77,6 +160,7 @@ export default async function RootLayout({
           </ThemeProvider>
 
           <Toaster richColors />
+          </I18nProvider>
         </SessionProvider>
       </body>
     </html>

@@ -4,6 +4,7 @@ import { formUrlQuery } from "@/lib/url";
 import { cn } from "@/lib/utils";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "./ui/button";
+import { useI18n } from "@/lib/i18n/client";
 
 interface Props {
   page?: number | string;
@@ -19,6 +20,7 @@ const Pagination = ({
   resetKeys = [],
 }: Props) => {
   const searchParams = useSearchParams();
+  const { t } = useI18n();
   const router = useRouter();
 
   // 处理分页导航的函数，根据用户点击的方向（上一页或下一页）来计算新的页码，并更新 URL 中的 page 参数。
@@ -50,7 +52,7 @@ const Pagination = ({
           onClick={() => handleNavigation("prev")}
           className="light-border-2 btn flex min-h-[36px] items-center justify-center gap-2 border"
         >
-          <p className="body-medium text-dark200_light800">Prev</p>
+          <p className="body-medium text-dark200_light800">{t("Prev")}</p>
         </Button>
       )}
 
@@ -64,7 +66,7 @@ const Pagination = ({
           onClick={() => handleNavigation("next")}
           className="light-border-2 btn flex min-h-[36px] items-center justify-center gap-2 border"
         >
-          <p className="body-medium text-dark200_light800">Next</p>
+          <p className="body-medium text-dark200_light800">{t("Next")}</p>
         </Button>
       )}
     </div>

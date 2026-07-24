@@ -9,6 +9,7 @@ import type { NotificationDTO } from "@/lib/dal/notification";
 import { cn, getTimeStamp } from "@/lib/utils";
 import { CheckCircle2, MessageCircleMore } from "lucide-react";
 import { ComponentProps, forwardRef } from "react";
+import { useI18n } from "@/lib/i18n/client";
 
 interface NotificationRowProps
   extends Omit<ComponentProps<"button">, "children"> {
@@ -30,6 +31,7 @@ const NotificationRow = forwardRef<HTMLButtonElement, NotificationRowProps>(
     },
     ref,
   ) {
+    const { locale, t } = useI18n();
     const isUnread = notification.readAt === null;
     const isAnswerCreated = notification.type === "answer_created";
     const initials =
@@ -57,8 +59,8 @@ const NotificationRow = forwardRef<HTMLButtonElement, NotificationRowProps>(
           className,
         )}
         aria-label={`${notification.actor.name} ${
-          isAnswerCreated ? "answered your question" : "accepted your answer"
-        }: ${notification.question.title}.${isUnread ? " Unread." : ""}`}
+          isAnswerCreated ? t("answered your question") : t("accepted your answer")
+        }: ${notification.question.title}.${isUnread ? ` ${t("Unread")}.` : ""}`}
       >
         <div className="relative shrink-0">
           <Avatar className={compact ? "size-9" : "size-10"}>
@@ -87,21 +89,21 @@ const NotificationRow = forwardRef<HTMLButtonElement, NotificationRowProps>(
               {notification.actor.name}
             </strong>{" "}
             {isAnswerCreated
-              ? "answered your question"
-              : "accepted your answer"}
+              ? t("answered your question")
+              : t("accepted your answer")}
           </span>
           <span className="small-semibold text-dark300_light800 mt-1 block truncate">
             {notification.question.title}
           </span>
           <span className="subtle-regular text-dark400_light500 mt-1 block">
-            {getTimeStamp(new Date(notification.createdAt))}
+            {getTimeStamp(new Date(notification.createdAt), locale)}
           </span>
         </span>
 
         {isUnread && (
           <span
             className="mt-2 size-2 shrink-0 rounded-full bg-primary-500"
-            aria-label="Unread"
+            aria-label={t("Unread")}
           />
         )}
       </button>

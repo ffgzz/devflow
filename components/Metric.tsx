@@ -16,7 +16,6 @@ interface Props {
 
 const Metric = ({
   imgUrl,
-  alt,
   value,
   title,
   imgStyles,
@@ -30,7 +29,8 @@ const Metric = ({
         src={imgUrl}
         width={16}
         height={16}
-        alt={alt}
+        alt=""
+        aria-hidden="true"
         className={`rounded-full object-contain ${imgStyles}`}
       />
 

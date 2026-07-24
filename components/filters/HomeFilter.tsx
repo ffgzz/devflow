@@ -5,9 +5,11 @@ import { cn } from "@/lib/utils";
 import { HomePageFilters } from "@/constants/filters";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "../ui/button";
+import { useI18n } from "@/lib/i18n/client";
 
 const HomeFilter = () => {
   const searchParams = useSearchParams();
+  const { t } = useI18n();
   const filterParams = searchParams.get("filter");
   // URL is the source of truth, so browser back/forward also updates the UI.
   const active = filterParams || "newest";
@@ -44,7 +46,7 @@ const HomeFilter = () => {
               : "bg-light-800 text-light-500 hover:bg-light-800 dark:bg-dark-300 dark:text-dark-500 dark:hover:bg-dark-300",
           )}
         >
-          {filter.name}
+          {t(filter.name)}
         </Button>
       ))}
     </div>

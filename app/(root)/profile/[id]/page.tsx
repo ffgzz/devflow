@@ -10,6 +10,7 @@ import ProfileLink from "@/components/user/ProfileLink";
 import Stats from "@/components/user/Stats";
 import UserAvatar from "@/components/UserAvatar";
 import { EMPTY_ANSWERS, EMPTY_QUESTION, EMPTY_TAGS } from "@/constants/states";
+import ROUTES from "@/constants/routes";
 import {
   getUser,
   getUserAnswers,
@@ -17,11 +18,47 @@ import {
   getUserStats,
   getUserTopTags,
 } from "@/lib/actions/user.action";
-import dayjs from "dayjs";
+import { createPageMetadata, toPlainText } from "@/lib/seo";
+import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { cache } from "react";
+import { getI18n } from "@/lib/i18n/server";
+
+const getUserForPage = cache((userId: string) => getUser({ userId }));
+
+export async function generateMetadata({
+  params,
+}: RouteParams): Promise<Metadata> {
+  const { id } = await params;
+
+  try {
+    const { success, data } = await getUserForPage(id);
+    if (!success || !data) {
+      return {
+        title: "Developer not found",
+        robots: { index: false, follow: false },
+      };
+    }
+
+    const { user } = data;
+    return createPageMetadata({
+      title: `${user.name} (@${user.username})`,
+      description:
+        (user.bio && toPlainText(user.bio, 160)) ||
+        `View ${user.name}'s questions, answers, top technologies, and community contributions on DevFlow.`,
+      pathname: ROUTES.PROFILE(id),
+    });
+  } catch {
+    return {
+      title: "Developer Profile",
+      robots: { index: false, follow: false },
+    };
+  }
+}
 
 const Profile = async ({ params, searchParams }: RouteParams) => {
+  const { locale, t } = await getI18n();
   const { id } = await params;
   const { page, pageSize } = await searchParams;
   // notFound() 是 Next.js 提供的函数，用来让当前页面进入 404 页面。
@@ -30,13 +67,13 @@ const Profile = async ({ params, searchParams }: RouteParams) => {
 
   const loggedInUser = await auth();
 
-  const { success, data, errors } = await getUser({
-    userId: id,
-  });
+  const { success, data, errors } = await getUserForPage(id);
   if (!success || !data) {
     return (
       <div>
-        <div className="h1-bold text-dark100_light900">{errors?.message}</div>
+        <div className="h1-bold text-dark100_light900">
+          {t(errors?.message || "Something Went Wrong")}
+        </div>
       </div>
     );
   }
@@ -59,7 +96,7 @@ const Profile = async ({ params, searchParams }: RouteParams) => {
     return (
       <div>
         <div className="h1-bold text-dark100_light900">
-          {userQuestionsErrors?.message}
+          {t(userQuestionsErrors?.message || "Something Went Wrong")}
         </div>
       </div>
     );
@@ -82,7 +119,7 @@ const Profile = async ({ params, searchParams }: RouteParams) => {
     return (
       <div>
         <div className="h1-bold text-dark100_light900">
-          {userAnswersErrors?.message}
+          {t(userAnswersErrors?.message || "Something Went Wrong")}
         </div>
       </div>
     );
@@ -125,7 +162,7 @@ const Profile = async ({ params, searchParams }: RouteParams) => {
           />
 
           <div className="mt-3">
-            <h2 className="h2-bold text-dark100_light900">{name}</h2>
+            <h1 className="h2-bold text-dark100_light900">{name}</h1>
             <p className="paragraph-regular text-dark200_light800">
               @{username}
             </p>
@@ -135,7 +172,7 @@ const Profile = async ({ params, searchParams }: RouteParams) => {
                 <ProfileLink
                   imgUrl="/icons/link.svg"
                   href={portfolio}
-                  title="Portfolio"
+                  title={t("Portfolio")}
                 />
               )}
 
@@ -146,7 +183,10 @@ const Profile = async ({ params, searchParams }: RouteParams) => {
               <ProfileLink
                 imgUrl="/icons/calendar.svg"
                 // dayjs 是一个 JavaScript 日期库，提供了丰富的日期处理功能。我们用它来格式化用户的注册日期（createdAt），让它以 "MMMM YYYY" 的格式显示，比如 "January 2022"。
-                title={dayjs(createdAt).format("MMMM YYYY")}
+                title={new Intl.DateTimeFormat(locale, {
+                  year: "numeric",
+                  month: "long",
+                }).format(new Date(createdAt))}
               />
             </div>
 
@@ -164,7 +204,7 @@ const Profile = async ({ params, searchParams }: RouteParams) => {
           {loggedInUser?.user?.id === _id && (
             <Link href="/profile/edit">
               <Button className="paragraph-medium btn-secondary text-dark300_light900 min-h-12 min-w-44 px-4 py-3">
-                Edit Profile
+                {t("Edit Profile")}
               </Button>
             </Link>
           )}
@@ -183,10 +223,10 @@ const Profile = async ({ params, searchParams }: RouteParams) => {
         <Tabs defaultValue="top-posts" className="flex-2">
           <TabsList className="background-light800_dark400 min-h-[42px] p-1">
             <TabsTrigger value="top-posts" className="tab">
-              Top Posts
+              {t("Top Posts")}
             </TabsTrigger>
             <TabsTrigger value="answers" className="tab">
-              Answers
+              {t("Answers")}
             </TabsTrigger>
           </TabsList>
           <TabsContent
@@ -246,7 +286,7 @@ const Profile = async ({ params, searchParams }: RouteParams) => {
 
         {/* 这里展示的是该用户参与的 tags 不是整个应用程序的，要跟右侧边栏区分开 */}
         <div className="flex w-full min-w-[250px] flex-1 flex-col max-lg:hidden">
-          <h3 className="h3-bold text-dark200_light900">Top Tech</h3>
+          <h3 className="h3-bold text-dark200_light900">{t("Top Tech")}</h3>
           <div className="mt-7 flex flex-col gap-4">
             <DataRenderer
               data={tags}

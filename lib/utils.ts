@@ -2,6 +2,7 @@ import { BADGE_CRITERIA } from "@/constants";
 import { techMap } from "@/constants/techMap";
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
+import type { Locale } from "@/lib/i18n/config";
 
 // clsx用来拼接，twMerge用来合并 Tailwind CSS 的类名，自动处理冲突和重复的类名，确保最终生成的类名字符串是最简洁和正确的。
 export function cn(...inputs: ClassValue[]) {
@@ -60,7 +61,7 @@ export const getDevIconClassName = (techName: string) => {
 };
 
 // 用于将一个 Date 对象转换为一个相对时间的字符串，例如 "5 minutes ago"、"2 hours ago" 等。
-export const getTimeStamp = (createdAt: Date | string) => {
+export const getTimeStamp = (createdAt: Date | string, locale: Locale = "en") => {
   const date = new Date(createdAt);
 
   const now = new Date();
@@ -79,11 +80,23 @@ export const getTimeStamp = (createdAt: Date | string) => {
   for (const unit of units) {
     const interval = Math.floor(secondsAgo / unit.seconds);
     if (interval >= 1) {
+      if (locale === "zh-CN") {
+        const zhUnits: Record<string, string> = {
+          year: "年",
+          month: "个月",
+          week: "周",
+          day: "天",
+          hour: "小时",
+          minute: "分钟",
+          second: "秒",
+        };
+        return `${interval} ${zhUnits[unit.label]}前`;
+      }
       return `${interval} ${unit.label}${interval > 1 ? "s" : ""} ago`;
     }
   }
   // 如果时间差小于 1 秒，返回 "just now"
-  return "just now";
+  return locale === "zh-CN" ? "刚刚" : "just now";
 };
 
 // 这个函数用于将一个数字格式化为更易读的形式，例如将 1500 格式化为 "1.5K"，将 2000000 格式化为 "2M" 等。

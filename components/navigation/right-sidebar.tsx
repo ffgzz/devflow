@@ -5,6 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import DataRenderer from "../DataRenderer";
 import TagCard from "../cards/TagCard";
+import { getI18n } from "@/lib/i18n/server";
 
 // const hotQuestions = [
 //   { _id: "1", title: "如何提高学习效率？" },
@@ -23,6 +24,7 @@ import TagCard from "../cards/TagCard";
 // ];
 
 const rightSidebar = async () => {
+  const { t } = await getI18n();
   // 获取热门问题和热门标签的数据，这些数据会在右侧边栏显示。我们通过调用 getHotQuestions 这个函数来获取这些数据，这个函数会从数据库里查询出浏览量最高的问题列表和被使用次数最多的标签列表，并返回给我们。然后我们就可以在界面上把这些热门问题和热门标签展示出来，方便用户快速找到他们感兴趣的内容。
   // 这里用 Promise.all 来并行获取热门问题和热门标签的数据，这样可以提高性能，因为我们不需要等一个请求完成后再发起另一个请求了。我们同时发起这两个请求，等它们都完成了之后，我们就可以拿到它们的结果了。
   const [
@@ -32,19 +34,20 @@ const rightSidebar = async () => {
 
   // xl 设备以下，隐藏右侧边栏，这是给平板用的，因为屏幕不够宽，如果不隐藏右侧边栏，内容会被挤压得很难看
   return (
-    <section
+    <aside
+      aria-label={t("Trending community content")}
       className="pt-36 custom-scrollbar background-light900_dark200 light-border sticky right-0 top-0 flex flex-col 
     gap-6 overflow-y-auto h-screen w-[350px] border-l p-6 shadow-light-300 dark:shadow-none max-xl:hidden"
     >
       <div>
-        <h3 className="h3-bold text-dark200_light900">TopQuestions</h3>
+        <h2 className="h3-bold text-dark200_light900">{t("Top Questions")}</h2>
 
         <div className="mt-7 flex w-full flex-col gap-[30px]">
           <DataRenderer
             data={hotQuestions}
             empty={{
-              title: "No questions yet",
-              message: "Be the first one to ask a question!",
+              title: t("No questions yet"),
+              message: t("Be the first one to ask a question!"),
             }}
             success={success}
             error={errors}
@@ -64,7 +67,8 @@ const rightSidebar = async () => {
                         src="/icons/chevron-right.svg"
                         width={20}
                         height={20}
-                        alt="Chevron"
+                        alt=""
+                        aria-hidden="true"
                         className="invert-colors"
                       />
                     </Link>
@@ -77,13 +81,13 @@ const rightSidebar = async () => {
       </div>
 
       <div className="mt-16">
-        <h3 className="h3-bold text-dark200_light900">Popular Tags</h3>
+        <h2 className="h3-bold text-dark200_light900">{t("Popular Tags")}</h2>
         <div className="mt-7 flex flex-col gap-4">
           <DataRenderer
             data={popularTags}
             empty={{
-              title: "No tags yet",
-              message: "Be the first one to create a tag!",
+              title: t("No tags yet"),
+              message: t("Be the first one to create a tag!"),
             }}
             success={tagSuccess}
             error={tagErrors}
@@ -106,7 +110,7 @@ const rightSidebar = async () => {
           />
         </div>
       </div>
-    </section>
+    </aside>
   );
 };
 

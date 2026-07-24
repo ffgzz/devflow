@@ -11,6 +11,7 @@ import { CircleXIcon, Loader2Icon, SparklesIcon } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+import { useI18n } from "@/lib/i18n/client";
 
 interface Props {
   initialPage: QuestionFeedPage;
@@ -52,6 +53,7 @@ const QuestionFeed = ({
   query,
   canPersonalize,
 }: Props) => {
+  const { t } = useI18n();
   const [items, setItems] = useState(initialPage.items);
   const [cursor, setCursor] = useState(initialPage.nextCursor);
   const [isLoading, setIsLoading] = useState(false);
@@ -106,15 +108,15 @@ const QuestionFeed = ({
       if (!controller.signal.aborted) {
         setError(
           requestError instanceof Error
-            ? requestError.message
-            : "Could not load more questions.",
+            ? t(requestError.message)
+            : t("Could not load more questions."),
         );
       }
     } finally {
       if (!controller.signal.aborted) setIsLoading(false);
       requestLockRef.current = false;
     }
-  }, [cursor, filter, query]);
+  }, [cursor, filter, query, t]);
 
   useEffect(() => {
     const sentinel = sentinelRef.current;
@@ -146,12 +148,12 @@ const QuestionFeed = ({
         next.splice(Math.min(originalIndex, next.length), 0, item);
         return next;
       });
-      toast.success("The question is back in your recommendations.");
+      toast.success(t("The question is back in your recommendations."));
     } catch (undoError) {
       toast.error(
         undoError instanceof Error
-          ? undoError.message
-          : "Could not restore the question.",
+          ? t(undoError.message)
+          : t("Could not restore the question."),
       );
     }
   };
@@ -163,9 +165,9 @@ const QuestionFeed = ({
 
     try {
       await persistFeedback(item.question._id, true);
-      toast("Question hidden from your recommendations.", {
+      toast(t("Question hidden from your recommendations."), {
         action: {
-          label: "Undo",
+          label: t("Undo"),
           onClick: () => void restoreHiddenItem(item, originalIndex),
         },
       });
@@ -177,8 +179,8 @@ const QuestionFeed = ({
       });
       toast.error(
         feedbackError instanceof Error
-          ? feedbackError.message
-          : "Could not update your feed.",
+          ? t(feedbackError.message)
+          : t("Could not update your feed."),
       );
     }
   };
@@ -186,29 +188,29 @@ const QuestionFeed = ({
   const isRecommendationFeed = filter === "recommended";
   const modeLabel =
     initialPage.mode === "personalized"
-      ? "Personalized from your recent activity"
+      ? t("Personalized from your recent activity")
       : initialPage.mode === "cold-start"
-        ? "New here? We are showing fresh community trends"
+        ? t("New here? We are showing fresh community trends")
         : null;
 
   if (items.length === 0 && !cursor) {
     return (
       <div className="mt-10 rounded-xl border border-dashed border-light-700 px-6 py-12 text-center dark:border-dark-400">
         <p className="h3-semibold text-dark200_light900">
-          No matching questions yet
+          {t("No matching questions yet")}
         </p>
         <p className="body-regular text-dark400_light700 mt-2">
-          Try another search, change the filter, or start the discussion.
+          {t("Try another search, change the filter, or start the discussion.")}
         </p>
         <Button asChild className="mt-5 bg-primary-500 text-light-900">
-          <Link href="/ask-question">Ask a question</Link>
+          <Link href="/ask-question">{t("Ask a question")}</Link>
         </Button>
       </div>
     );
   }
 
   return (
-    <section className="mt-10" aria-label="Question feed">
+    <section className="mt-10" aria-label={t("Question feed")}>
       {modeLabel && (
         <div className="text-dark400_light700 small-medium mb-4 flex items-center gap-2">
           <SparklesIcon
@@ -228,19 +230,19 @@ const QuestionFeed = ({
                   className="size-3.5 text-primary-500"
                   aria-hidden="true"
                 />
-                {item.recommendation.label}
+                {t(item.recommendation.label)}
               </p>
 
               {isRecommendationFeed && canPersonalize && (
                 <button
                   type="button"
                   className="text-dark400_light700 hover:text-primary-500 flex shrink-0 items-center gap-1 rounded-md px-2 py-1 focus-visible:outline-2 focus-visible:outline-primary-500"
-                  aria-label={`Not interested in ${item.question.title}`}
+                  aria-label={`${t("Not interested in")} ${item.question.title}`}
                   onClick={() => void hideItem(item, index)}
                 >
                   <CircleXIcon className="size-4" aria-hidden="true" />
                   <span className="small-medium max-sm:hidden">
-                    Not interested
+                    {t("Not interested")}
                   </span>
                 </button>
               )}
@@ -256,7 +258,7 @@ const QuestionFeed = ({
       <div className="mt-6 flex flex-col items-center gap-3" aria-live="polite">
         {error && (
           <p className="small-regular text-red-500" role="alert">
-            {error}
+            {t(error)}
           </p>
         )}
         {cursor ? (
@@ -270,17 +272,17 @@ const QuestionFeed = ({
             {isLoading ? (
               <>
                 <Loader2Icon className="animate-spin" aria-hidden="true" />
-                Loading…
+                {t("Loading…")}
               </>
             ) : error ? (
-              "Try again"
+              t("Try again")
             ) : (
-              "Load more"
+              t("Load more")
             )}
           </Button>
         ) : (
           <p className="small-regular text-dark400_light700">
-            You have reached the end of this feed.
+            {t("You have reached the end of this feed.")}
           </p>
         )}
       </div>

@@ -7,8 +7,18 @@ import { UserFilters } from "@/constants/filters";
 import ROUTES from "@/constants/routes";
 import { EMPTY_USERS } from "@/constants/states";
 import { getUsers } from "@/lib/actions/user.action";
+import { createPageMetadata } from "@/lib/seo";
+import { getI18n } from "@/lib/i18n/server";
+
+export const metadata = createPageMetadata({
+  title: "Developer Community",
+  description:
+    "Meet developers, explore their questions and answers, and discover people sharing practical programming knowledge.",
+  pathname: "/community",
+});
 
 const Community = async ({ searchParams }: RouteParams) => {
+  const { t } = await getI18n();
   const { page, pageSize, query, filter } = await searchParams;
 
   const { success, data, errors } = await getUsers({
@@ -22,14 +32,14 @@ const Community = async ({ searchParams }: RouteParams) => {
 
   return (
     <div>
-      <h1 className="h1-bold text-dark100_light900">All Users</h1>
+      <h1 className="h1-bold text-dark100_light900">{t("All Users")}</h1>
 
       <div className="mt-11 flex justify-between sm:items-center gap-5 max-sm:flex-col ">
         <LocalSearch
           imgSrc="/icons/search.svg"
           route={ROUTES.COMMUNITY}
           iconPosition="left"
-          placeholder="Search some great devs..."
+          placeholder={t("Search some great devs...")}
           otherClasses="flex-1"
         />
 

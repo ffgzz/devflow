@@ -1,13 +1,13 @@
 import CodePlayground from "@/components/playground/CodePlayground";
-import type { Metadata } from "next";
+import { createPageMetadata } from "@/lib/seo";
 
-export const metadata: Metadata = {
-  title: "Code Lab | DevFlow",
+export const metadata = createPageMetadata({
+  title: "Browser Code Lab",
   description:
     "Run JavaScript and HTML/CSS/JS in isolated browser runtimes with logs, errors, timeout, and local forks.",
-};
+  pathname: "/playground",
+});
 
 const PlaygroundPage = () => <CodePlayground />;
 
 export default PlaygroundPage;
-

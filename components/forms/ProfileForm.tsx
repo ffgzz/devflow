@@ -19,12 +19,14 @@ import {
   FieldLabel,
 } from "../ui/field";
 import { Input } from "../ui/input";
+import { useI18n } from "@/lib/i18n/client";
 
 interface Params {
   user: User;
 }
 
 const ProfileForm = ({ user }: Params) => {
+  const { t } = useI18n();
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
 
@@ -46,18 +48,18 @@ const ProfileForm = ({ user }: Params) => {
       const result = await updateUser(values);
 
       if (result.success) {
-        toast.success("Success", {
-          description: "Your profile has been updated successfully.",
+        toast.success(t("Success"), {
+          description: t("Your profile has been updated successfully."),
           position: "top-center",
         });
 
         // 更新成功后，重定向到用户的个人资料页面
         router.push(ROUTES.PROFILE(user._id));
       } else {
-        toast.error(`Error ${result.status}`, {
+        toast.error(`${t("Error")} ${result.status}`, {
           description:
-            result.errors?.message ||
-            "An error occurred while updating your profile.",
+            t(result.errors?.message ||
+            "An error occurred while updating your profile."),
           position: "top-center",
         });
       }
@@ -75,17 +77,28 @@ const ProfileForm = ({ user }: Params) => {
           name="name"
           render={({ field, fieldState }) => (
             <Field>
-              <FieldLabel className="paragraph-semibold text-dark400_light800">
-                Name <span className="text-primary-500">*</span>
+              <FieldLabel
+                htmlFor="profile-name"
+                className="paragraph-semibold text-dark400_light800"
+              >
+                {t("Name")} <span className="text-primary-500">*</span>
               </FieldLabel>
               <FieldContent>
                 <Input
                   {...field}
+                  id="profile-name"
+                  required
                   aria-invalid={!!fieldState.error}
+                  aria-describedby={
+                    fieldState.error ? "profile-name-error" : undefined
+                  }
                   className="paragraph-regular background-light800_dark300 light-border-2 text-dark300_light700 no-focus min-h-[56px] border"
-                  placeholder="Your Name"
+                  placeholder={t("Your Name")}
                 />
-                <FieldError errors={[fieldState.error]} />
+                <FieldError
+                  id="profile-name-error"
+                  errors={[fieldState.error]}
+                />
               </FieldContent>
             </Field>
           )}
@@ -96,17 +109,28 @@ const ProfileForm = ({ user }: Params) => {
           name="username"
           render={({ field, fieldState }) => (
             <Field>
-              <FieldLabel className="paragraph-semibold text-dark400_light800">
-                Username <span className="text-primary-500">*</span>
+              <FieldLabel
+                htmlFor="profile-username"
+                className="paragraph-semibold text-dark400_light800"
+              >
+                {t("Username")} <span className="text-primary-500">*</span>
               </FieldLabel>
               <FieldContent>
                 <Input
                   {...field}
+                  id="profile-username"
+                  required
                   aria-invalid={!!fieldState.error}
+                  aria-describedby={
+                    fieldState.error ? "profile-username-error" : undefined
+                  }
                   className="paragraph-regular background-light800_dark300 light-border-2 text-dark300_light700 no-focus min-h-[56px] border"
-                  placeholder="Your username"
+                  placeholder={t("Your username")}
                 />
-                <FieldError errors={[fieldState.error]} />
+                <FieldError
+                  id="profile-username-error"
+                  errors={[fieldState.error]}
+                />
               </FieldContent>
             </Field>
           )}
@@ -117,18 +141,28 @@ const ProfileForm = ({ user }: Params) => {
           name="portfolio"
           render={({ field, fieldState }) => (
             <Field>
-              <FieldLabel className="paragraph-semibold text-dark400_light800">
-                Portfolio Link
+              <FieldLabel
+                htmlFor="profile-portfolio"
+                className="paragraph-semibold text-dark400_light800"
+              >
+                {t("Portfolio Link")}
               </FieldLabel>
               <FieldContent>
                 <Input
                   {...field}
+                  id="profile-portfolio"
                   aria-invalid={!!fieldState.error}
+                  aria-describedby={
+                    fieldState.error ? "profile-portfolio-error" : undefined
+                  }
                   className="paragraph-regular background-light800_dark300 light-border-2 text-dark300_light700 no-focus min-h-[56px] border"
-                  placeholder="Your Portfolio link"
+                  placeholder={t("Your Portfolio link")}
                   type="url"
                 />
-                <FieldError errors={[fieldState.error]} />
+                <FieldError
+                  id="profile-portfolio-error"
+                  errors={[fieldState.error]}
+                />
               </FieldContent>
             </Field>
           )}
@@ -139,17 +173,28 @@ const ProfileForm = ({ user }: Params) => {
           name="location"
           render={({ field, fieldState }) => (
             <Field>
-              <FieldLabel className="paragraph-semibold text-dark400_light800">
-                Location <span className="text-primary-500">*</span>
+              <FieldLabel
+                htmlFor="profile-location"
+                className="paragraph-semibold text-dark400_light800"
+              >
+                {t("Location")} <span className="text-primary-500">*</span>
               </FieldLabel>
               <FieldContent>
                 <Input
                   {...field}
+                  id="profile-location"
+                  required
                   aria-invalid={!!fieldState.error}
+                  aria-describedby={
+                    fieldState.error ? "profile-location-error" : undefined
+                  }
                   className="paragraph-regular background-light800_dark300 light-border-2 text-dark300_light700 no-focus min-h-[56px] border"
-                  placeholder="Where do you live?"
+                  placeholder={t("Where do you live?")}
                 />
-                <FieldError errors={[fieldState.error]} />
+                <FieldError
+                  id="profile-location-error"
+                  errors={[fieldState.error]}
+                />
               </FieldContent>
             </Field>
           )}
@@ -160,18 +205,29 @@ const ProfileForm = ({ user }: Params) => {
           name="bio"
           render={({ field, fieldState }) => (
             <Field>
-              <FieldLabel className="paragraph-semibold text-dark400_light800">
-                Bio <span className="text-primary-500">*</span>
+              <FieldLabel
+                htmlFor="profile-bio"
+                className="paragraph-semibold text-dark400_light800"
+              >
+                {t("Bio")} <span className="text-primary-500">*</span>
               </FieldLabel>
               <FieldContent>
                 <textarea
                   {...field}
+                  id="profile-bio"
+                  required
                   aria-invalid={!!fieldState.error}
+                  aria-describedby={
+                    fieldState.error ? "profile-bio-error" : undefined
+                  }
                   className="paragraph-regular background-light800_dark300 light-border-2 text-dark300_light700 no-focus min-h-[120px] rounded-lg border px-3 py-2"
-                  placeholder="What's special about you?"
+                  placeholder={t("What's special about you?")}
                   rows={5}
                 />
-                <FieldError errors={[fieldState.error]} />
+                <FieldError
+                  id="profile-bio-error"
+                  errors={[fieldState.error]}
+                />
               </FieldContent>
             </Field>
           )}
@@ -187,10 +243,10 @@ const ProfileForm = ({ user }: Params) => {
           {isPending ? (
             <>
               <Loader2Icon className="mr-2 size-4 animate-spin" />
-              Submitting...
+              {t("Submitting...")}
             </>
           ) : (
-            "Submit"
+            t("Submit")
           )}
         </Button>
       </div>

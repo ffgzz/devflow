@@ -8,6 +8,7 @@ import type {
   GlobalSearchItem,
   GlobalSearchType,
 } from "@/lib/dal/global-search";
+import { useI18n } from "@/lib/i18n/client";
 
 interface Props {
   listboxId: string;
@@ -45,6 +46,7 @@ const GlobalResult = ({
   onActiveIndexChange,
   onSelect,
 }: Props) => {
+  const { t } = useI18n();
   const listboxRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -55,17 +57,17 @@ const GlobalResult = ({
   }, [activeIndex]);
 
   const status = (() => {
-    if (query.length < 2) return "Type at least 2 characters to search.";
-    if (error) return error;
-    if (!isLoading && items.length === 0) return "Oops, no results found";
+    if (query.length < 2) return t("Type at least 2 characters to search.");
+    if (error) return t(error);
+    if (!isLoading && items.length === 0) return t("Oops, no results found");
     return null;
   })();
 
   return (
     <div className="absolute top-full z-10 mt-3 w-full rounded-xl bg-light-800 py-5 shadow-sm dark:bg-dark-400">
       <div className="flex items-center gap-3 overflow-x-auto px-5 pb-1">
-        <p className="text-dark400_light900 body-medium shrink-0">Type:</p>
-        <div className="flex gap-2" aria-label="Search result type">
+        <p className="text-dark400_light900 body-medium shrink-0">{t("Type")}:</p>
+        <div className="flex gap-2" aria-label={t("Search result type")}>
           {SEARCH_TYPES.map((filter) => {
             const selected = type === filter.value;
 
@@ -81,7 +83,7 @@ const GlobalResult = ({
                 }`}
                 onClick={() => onTypeChange(filter.value)}
               >
-                {filter.label}
+                {t(filter.label)}
               </button>
             );
           })}
@@ -92,7 +94,7 @@ const GlobalResult = ({
 
       <div className="space-y-5">
         <p className="text-dark400_light900 paragraph-semibold px-5">
-          Top Match
+          {t("Top Match")}
         </p>
 
         {isLoading ? (
@@ -102,7 +104,7 @@ const GlobalResult = ({
               aria-hidden="true"
             />
             <p className="text-dark200_light800 body-regular">
-              Browsing the whole database...
+              {t("Browsing the whole database...")}
             </p>
           </div>
         ) : status ? (
@@ -117,7 +119,7 @@ const GlobalResult = ({
             ref={listboxRef}
             id={listboxId}
             role="listbox"
-            aria-label="Global search results"
+            aria-label={t("Global search results")}
             className="flex max-h-[390px] flex-col gap-2 overflow-y-auto"
           >
             {items.map((item, index) => {
@@ -152,7 +154,7 @@ const GlobalResult = ({
                       {item.title}
                     </span>
                     <span className="text-light400_light500 small-medium mt-1 block font-bold">
-                      <span className="capitalize">{item.type}</span>
+                      <span className="capitalize">{t(item.type.charAt(0).toUpperCase() + item.type.slice(1))}</span>
                       {item.subtitle ? ` · ${item.subtitle}` : ""}
                     </span>
                   </span>
@@ -164,7 +166,7 @@ const GlobalResult = ({
       </div>
 
       <p className="text-light400_light500 small-regular mt-4 px-5">
-        Use ↑ ↓ to navigate, Enter to open, Esc to close
+        {t("Use ↑ ↓ to navigate, Enter to open, Esc to close")}
       </p>
     </div>
   );

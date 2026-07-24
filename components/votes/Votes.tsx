@@ -6,6 +6,7 @@ import { useSession } from "next-auth/react";
 import Image from "next/image";
 import { use, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+import { useI18n } from "@/lib/i18n/client";
 
 interface Props {
   targetId: string;
@@ -24,6 +25,7 @@ const Votes = ({
   targetType,
   targetAuthorId,
 }: Props) => {
+  const { t } = useI18n();
   const session = useSession();
   const userId = session.data?.user?.id;
 
@@ -56,13 +58,13 @@ const Votes = ({
     if (requestInFlight.current) return;
     if (!userId) {
       // 如果用户未登录，提示他们需要登录才能投票
-      return toast.error("You need to be logged in to vote.", {
-        description: "Please log in to cast your vote.",
+      return toast.error(t("You need to be logged in to vote."), {
+        description: t("Please log in to cast your vote."),
       });
     }
 
     if (userId === targetAuthorId) {
-      return toast.error("You cannot vote on your own content.");
+      return toast.error(t("You cannot vote on your own content."));
     }
 
     requestInFlight.current = true;
@@ -118,8 +120,8 @@ const Votes = ({
       });
       if (!result.success || !result.data) {
         setVoteState(previousState);
-        return toast.error("Failed to process your vote.", {
-          description: result.errors?.message || "Please try again later.",
+        return toast.error(t("Failed to process your vote."), {
+          description: t(result.errors?.message || "Please try again later."),
         });
       }
 
@@ -127,18 +129,23 @@ const Votes = ({
       // accounts for votes cast from another tab between render and click.
       setVoteState(result.data);
 
-      const successMessage =
+      const successMessage = t(
         type === "upvote"
-          ? `Upvote ${desiredVoteType ? "added" : "removed"} successfully!`
-          : `Downvote ${desiredVoteType ? "added" : "removed"} successfully!`;
+          ? desiredVoteType
+            ? "Upvote added successfully!"
+            : "Upvote removed successfully!"
+          : desiredVoteType
+            ? "Downvote added successfully!"
+            : "Downvote removed successfully!",
+      );
 
       toast.success(successMessage, {
         position: "top-center",
       });
     } catch {
       setVoteState(previousState);
-      toast.error("An error occurred while processing your vote.", {
-        description: "Please try again later.",
+      toast.error(t("An error occurred while processing your vote."), {
+        description: t("Please try again later."),
       });
     } finally {
       requestInFlight.current = false;
@@ -151,12 +158,12 @@ const Votes = ({
       <div className="flex-center gap-1.5">
         <button
           type="button"
-          aria-label="Upvote"
+          aria-label={t("Upvote")}
           aria-pressed={voteState.hasUpvoted}
           title={
             userId === targetAuthorId
-              ? "You cannot vote on your own content"
-              : "Upvote"
+              ? t("You cannot vote on your own content")
+              : t("Upvote")
           }
           disabled={
             isLoading ||
@@ -188,12 +195,12 @@ const Votes = ({
       <div className="flex-center gap-1.5">
         <button
           type="button"
-          aria-label="Downvote"
+          aria-label={t("Downvote")}
           aria-pressed={voteState.hasDownvoted}
           title={
             userId === targetAuthorId
-              ? "You cannot vote on your own content"
-              : "Downvote"
+              ? t("You cannot vote on your own content")
+              : t("Downvote")
           }
           disabled={
             isLoading ||

@@ -5,6 +5,7 @@ import CommonFilter from "../filters/CommonFilter";
 import Pagination from "../Pagination";
 import { AnswerAcceptanceProvider } from "./AnswerAcceptanceControl";
 import AnswerCard from "./AnswerCard";
+import { getI18n } from "@/lib/i18n/server";
 
 interface Props extends ActionResponse<Answer[]> {
   totalAnswers: number;
@@ -15,7 +16,7 @@ interface Props extends ActionResponse<Answer[]> {
   canManageAcceptance: boolean;
 }
 
-const AllAnswers = ({
+const AllAnswers = async ({
   data,
   page,
   isNext,
@@ -26,12 +27,13 @@ const AllAnswers = ({
   acceptedAnswerId,
   canManageAcceptance,
 }: Props) => {
+  const { t } = await getI18n();
   return (
     <div className="mt-11">
       <div className="flex items-center justify-between">
-        <h3 className="primary-text-gradient">
-          {totalAnswers} {totalAnswers === 1 ? "Answer" : "Answers"}
-        </h3>
+        <h2 className="primary-text-gradient">
+          {totalAnswers} {t(totalAnswers === 1 ? "Answer" : "Answers")}
+        </h2>
         {/* 筛选排序 */}
         <CommonFilter
           filters={AnswerFilters}

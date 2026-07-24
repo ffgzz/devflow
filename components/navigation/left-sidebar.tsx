@@ -1,6 +1,7 @@
 import { auth, signOut } from "@/auth";
 import ROUTES from "@/constants/routes";
 import { LogOut } from "lucide-react";
+import { getI18n } from "@/lib/i18n/server";
 import Image from "next/image";
 import Link from "next/link";
 import { Button } from "../ui/button";
@@ -9,12 +10,16 @@ import NavLinks from "./navbar/NavLinks";
 const LeftSidebar = async () => {
   const session = await auth();
   const userId = session?.user?.id;
+  const { t } = await getI18n();
 
   return (
-    <section className="custom-scrollbar background-light900_dark200 light-border sticky left-0 top-0 h-screen flex flex-col justify-between overflow-y-auto border-r p-6 pt-36 shadow-light-300 dark:shadow-none max-sm:hidden lg:w-[266px]">
-      <div className="flex flex-1 flex-col gap-6">
+    <aside
+      aria-label={t("Sidebar navigation")}
+      className="custom-scrollbar background-light900_dark200 light-border sticky left-0 top-0 h-screen flex flex-col justify-between overflow-y-auto border-r p-6 pt-36 shadow-light-300 dark:shadow-none max-sm:hidden lg:w-[266px]"
+    >
+      <nav aria-label={t("DevFlow sections")} className="flex flex-1 flex-col gap-6">
         <NavLinks userId={userId} />
-      </div>
+      </nav>
 
       <div className="flex flex-col gap-3">
         {userId ? (
@@ -30,9 +35,12 @@ const LeftSidebar = async () => {
               type="submit"
               className="base-medium w-fit !bg-transparent px-4 py-3"
             >
-              <LogOut className="size-5 text-black dark:text-white" />
+              <LogOut
+                aria-hidden="true"
+                className="size-5 text-black dark:text-white"
+              />
               <span className="max-lg:hidden text-dark300_light900">
-                Logout
+                {t("Logout")}
               </span>
             </Button>
           </form>
@@ -46,13 +54,14 @@ const LeftSidebar = async () => {
               <Link href={ROUTES.SIGN_IN}>
                 <Image
                   src="/icons/account.svg"
-                  alt="Account"
+                  alt=""
+                  aria-hidden="true"
                   width={20}
                   height={20}
                   className="invert-colors lg:hidden"
                 />
                 <span className="primary-text-gradient max-lg:hidden">
-                  Log In
+                  {t("Log In")}
                 </span>
               </Link>
             </Button>
@@ -64,18 +73,19 @@ const LeftSidebar = async () => {
               <Link href={ROUTES.SIGN_UP}>
                 <Image
                   src="/icons/sign-up.svg"
-                  alt="Account"
+                  alt=""
+                  aria-hidden="true"
                   width={20}
                   height={20}
                   className="invert-colors lg:hidden"
                 />
-                <span className="max-lg:hidden">Sign Up</span>
+                <span className="max-lg:hidden">{t("Sign Up")}</span>
               </Link>
             </Button>
           </>
         )}
       </div>
-    </section>
+    </aside>
   );
 };
 

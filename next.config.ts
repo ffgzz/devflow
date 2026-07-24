@@ -64,6 +64,8 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
+  // Produce the minimal server bundle used by the production Docker image.
+  output: "standalone",
   // serverExternalPackages 选项允许我们指定一些包，这些包在构建服务器端代码时不会被打包，而是直接从 node_modules 中加载。这对于一些大型的、已经优化好的库（如 pino 和 pino-pretty）非常有用，可以减少构建时间和最终构建产物的大小。
   serverExternalPackages: ["pino", "pino-pretty"],
   /* config options here */
@@ -97,6 +99,7 @@ const nextConfig: NextConfig = {
     ],
     qualities: [75, 100],
   },
+  // 给所有的页面和 API 路径添加安全相关的 HTTP 头部，以增强应用的安全性，防止常见的攻击，如 XSS、点击劫持等。
   async headers() {
     return [
       {

@@ -32,8 +32,9 @@ import "@mdxeditor/editor/style.css";
 // basicDark 是 MDXEditor 提供的一个预定义的暗色主题，包含了一套适用于暗色模式的样式和配色方案。通过应用 basicDark 主题，我们可以确保编辑器在暗色模式下具有良好的视觉效果和一致的用户体验。
 import { basicDark } from "cm6-theme-basic-dark";
 import { useTheme } from "next-themes";
-import type { ForwardedRef } from "react";
+import { useCallback, type ForwardedRef } from "react";
 import "./dark-editor.css";
+import { useI18n } from "@/lib/i18n/client";
 
 interface Props {
   value: string;
@@ -45,6 +46,21 @@ interface Props {
 // 主要用于提问页面和问题页面的回答
 const Editor = ({ value, fieldChange, editorRef, ...props }: Props) => {
   const { resolvedTheme } = useTheme();
+  const { t } = useI18n();
+  const editorTranslation = useCallback(
+    (
+      _key: string,
+      defaultValue: string,
+      interpolations: Record<string, unknown> = {},
+    ) => {
+      let value = t(defaultValue);
+      for (const [name, replacement] of Object.entries(interpolations)) {
+        value = value.replaceAll(`{{${name}}}`, String(replacement));
+      }
+      return value;
+    },
+    [t],
+  );
   // MDXEditor 的 codeMirrorPlugin 插件支持 CodeMirror 编辑器的主题定制。
   // 通过根据当前主题动态选择是否应用 basicDark 主题，我们可以确保编辑器在不同主题下都具有良好的视觉效果和一致的用户体验。
   const theme = resolvedTheme === "dark" ? [basicDark] : [];
@@ -53,6 +69,7 @@ const Editor = ({ value, fieldChange, editorRef, ...props }: Props) => {
     <MDXEditor
       key={resolvedTheme}
       markdown={value}
+      translation={editorTranslation}
       onChange={fieldChange}
       className="background-light800_dark200 light-border-2 markdown-editor dark-editor w-full border"
       // MDXEditor 内置了多种插件，提供了丰富的编辑功能。根据需求选择合适的插件进行配置

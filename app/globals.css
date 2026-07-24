@@ -261,7 +261,7 @@
 }
 
 @utility primary-gradient {
-  background: linear-gradient(129deg, #ff7000 0%, #e2995f 100%);
+  background: linear-gradient(129deg, #c2410c 0%, #9a3412 100%);
 }
 
 @utility dark-gradient {
@@ -321,7 +321,7 @@
 }
 
 @utility no-focus {
-  @apply focus-visible:ring-0! focus-visible:ring-transparent! focus-visible:ring-offset-0!;
+  @apply focus-visible:outline-none! focus-visible:ring-2! focus-visible:ring-primary-500! focus-visible:ring-offset-2!;
 }
 
 @utility markdown {
@@ -558,4 +558,15 @@
 [data-bright-mode="light"]:not(:not(html.light [data-bright-mode="light"])) {
   display: grid !important;
   width: 100% !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

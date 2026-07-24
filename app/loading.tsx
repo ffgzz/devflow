@@ -4,14 +4,17 @@ const LoadingBar = ({ className }: { className: string }) => (
   />
 );
 
-export default function Loading() {
+import { getI18n } from "@/lib/i18n/server";
+
+export default async function Loading() {
+  const { t } = await getI18n();
   return (
     <main
       className="mx-auto w-full max-w-5xl px-6 py-12"
       aria-busy="true"
-      aria-label="Loading page"
+      aria-label={t("Loading page")}
     >
-      <span className="sr-only">Loading page</span>
+      <span className="sr-only">{t("Loading page")}</span>
       <LoadingBar className="h-10 w-2/3 max-w-xl" />
       <LoadingBar className="mt-5 h-14 w-full" />
 

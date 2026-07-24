@@ -2,6 +2,7 @@ import { Code } from "bright";
 import Image from "next/image";
 import { MDXRemote } from "next-mdx-remote/rsc";
 import type { ComponentPropsWithoutRef } from "react";
+import { getI18n } from "@/lib/i18n/server";
 
 Code.theme = {
   light: "github-light",
@@ -78,13 +79,18 @@ const SafeImage = ({
   src,
   alt,
   title,
-}: ComponentPropsWithoutRef<"img">) => {
+  blockedText,
+  fallbackAlt,
+}: ComponentPropsWithoutRef<"img"> & {
+  blockedText: string;
+  fallbackAlt: string;
+}) => {
   const safeSrc = getSafeImageSource(src);
 
   if (!safeSrc) {
     return (
       <span className="text-dark400_light500 text-sm" role="note">
-        Image blocked: untrusted source
+        {blockedText}
       </span>
     );
   }
@@ -92,7 +98,7 @@ const SafeImage = ({
   return (
     <Image
       src={safeSrc}
-      alt={alt || "User-provided image"}
+      alt={alt || fallbackAlt}
       title={title}
       width={960}
       height={540}
@@ -112,6 +118,7 @@ const SafeCodeBlock = ({ children }: ComponentPropsWithoutRef<"pre">) => (
 );
 
 const Preview = async ({ content = "" }: { content: string }) => {
+  const { t } = await getI18n();
   // Preserve Markdown escaping; only normalize the legacy encoded-space token.
   const formattedContent = content.replace(/&#x20;/g, " ");
 
@@ -128,7 +135,13 @@ const Preview = async ({ content = "" }: { content: string }) => {
       },
       components: {
         a: SafeLink,
-        img: SafeImage,
+        img: (props) => (
+          <SafeImage
+            {...props}
+            blockedText={t("Image blocked: untrusted source")}
+            fallbackAlt={t("User-provided image")}
+          />
+        ),
         pre: SafeCodeBlock,
       },
     });
@@ -142,7 +155,7 @@ const Preview = async ({ content = "" }: { content: string }) => {
         className="markdown text-dark400_light500 break-words rounded-lg border border-dashed p-4"
         role="status"
       >
-        This content could not be displayed safely.
+        {t("This content could not be displayed safely.")}
       </section>
     );
   }

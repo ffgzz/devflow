@@ -7,12 +7,21 @@ import { CollectionFilters } from "@/constants/filters";
 import ROUTES from "@/constants/routes";
 import { EMPTY_QUESTION } from "@/constants/states";
 import { getSavedQuestions } from "@/lib/actions/collection.action";
+import type { Metadata } from "next";
+import { getI18n } from "@/lib/i18n/server";
+
+export const metadata: Metadata = {
+  title: "Saved Questions",
+  description: "Review the DevFlow questions saved to your private collection.",
+  robots: { index: false, follow: false },
+};
 
 interface SearchParams {
   searchParams: Promise<{ [key: string]: string }>;
 }
 
 export default async function Collection({ searchParams }: SearchParams) {
+  const { t } = await getI18n();
   const { page, pageSize, query, filter } = await searchParams;
 
   const { success, data, errors } = await getSavedQuestions({
@@ -32,13 +41,13 @@ export default async function Collection({ searchParams }: SearchParams) {
 
   return (
     <>
-      <h1 className="h1-bold text-dark100_light900">Saved Questions</h1>
+      <h1 className="h1-bold text-dark100_light900">{t("Saved Questions")}</h1>
 
       <div className="mt-11 flex justify-between sm:items-center gap-5 max-sm:flex-col ">
         <LocalSearch
           route={ROUTES.COLLECTION}
           imgSrc="/icons/search.svg"
-          placeholder="Search questions..."
+          placeholder={t("Search questions...")}
           otherClasses="flex-1"
         />
         <CommonFilter

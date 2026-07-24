@@ -7,8 +7,18 @@ import { TagFilters } from "@/constants/filters";
 import ROUTES from "@/constants/routes";
 import { EMPTY_TAGS } from "@/constants/states";
 import { getTags } from "@/lib/actions/tag.action";
+import { createPageMetadata } from "@/lib/seo";
+import { getI18n } from "@/lib/i18n/server";
+
+export const metadata = createPageMetadata({
+  title: "Programming Topics",
+  description:
+    "Browse programming questions by technology, framework, language, and frontend development topic.",
+  pathname: "/tags",
+});
 
 const Tags = async ({ searchParams }: RouteParams) => {
+  const { t } = await getI18n();
   const { page, pageSize, query, filter } = await searchParams;
 
   const { success, data, errors } = await getTags({
@@ -19,17 +29,16 @@ const Tags = async ({ searchParams }: RouteParams) => {
   });
 
   const { tags, isNext } = data || {};
-  console.log("tags", JSON.stringify(tags, null, 2));
 
   return (
     <>
-      <h1 className="h1-bold text-dark100_light900">Tags</h1>
+      <h1 className="h1-bold text-dark100_light900">{t("Tags")}</h1>
 
       <div className="mt-11 flex justify-between sm:items-center gap-5 max-sm:flex-col ">
         <LocalSearch
           route={ROUTES.TAGS}
           imgSrc="/icons/search.svg"
-          placeholder="Search by tag name..."
+          placeholder={t("Search by tag name...")}
           iconPosition="left"
           otherClasses="flex-1"
         />

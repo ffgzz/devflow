@@ -12,6 +12,7 @@ import {
 import { formUrlQuery } from "@/lib/url";
 import { cn } from "@/lib/utils";
 import { useRouter, useSearchParams } from "next/navigation";
+import { useI18n } from "@/lib/i18n/client";
 
 interface Filter {
   name: string;
@@ -32,6 +33,7 @@ const CommonFilter = ({
   fallbackValue,
 }: Props) => {
   const router = useRouter();
+  const { t } = useI18n();
   const searchParams = useSearchParams();
 
   const paramsFilter = searchParams.get("filter");
@@ -62,7 +64,7 @@ const CommonFilter = ({
           )}
         >
           <div className="line-clamp-1 flex-1 text-left">
-            <SelectValue placeholder="Filter" />
+            <SelectValue placeholder={t("Filter")} />
           </div>
         </SelectTrigger>
 
@@ -70,7 +72,7 @@ const CommonFilter = ({
           <SelectGroup>
             {filters.map((filter) => (
               <SelectItem key={filter.value} value={filter.value}>
-                {filter.name}
+                {t(filter.name)}
               </SelectItem>
             ))}
           </SelectGroup>

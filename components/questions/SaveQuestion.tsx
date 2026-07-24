@@ -5,6 +5,7 @@ import { useSession } from "next-auth/react";
 import Image from "next/image";
 import { use, useEffect, useState } from "react";
 import { toast } from "sonner";
+import { useI18n } from "@/lib/i18n/client";
 
 // 收藏问题
 const SaveQuestion = ({
@@ -14,6 +15,7 @@ const SaveQuestion = ({
   questionId: string;
   hasSavedQuestionPromise: Promise<ActionResponse<{ saved: boolean }>>;
 }) => {
+  const { t } = useI18n();
   // useSession() 是客户端 Hook，只能在 Client Component 里用
   // 而 auth 是服务端函数，只能在 Server Component 里用
   const session = useSession();
@@ -33,7 +35,7 @@ const SaveQuestion = ({
 
   const handleSave = async () => {
     if (isLoading) return;
-    if (!userId) return toast.error("You must be logged in to save questions");
+    if (!userId) return toast.error(t("You must be logged in to save questions"));
 
     const previousSaved = saved;
     const nextSaved = !previousSaved;
@@ -52,16 +54,16 @@ const SaveQuestion = ({
       setSaved(data.saved);
 
       toast.success(
-        `Question ${data.saved ? "saved to" : "removed from"} your collection successfully!`,
+        t(data.saved ? "Question saved to your collection successfully!" : "Question removed from your collection successfully!"),
         {
           position: "top-center",
         },
       );
     } catch (error) {
       setSaved(previousSaved);
-      toast.error("question", {
+      toast.error(t("Question"), {
         description:
-          error instanceof Error ? error.message : "An unknown error occurred",
+          error instanceof Error ? t(error.message) : t("An unknown error occurred"),
         position: "top-center",
       });
     } finally {
@@ -72,7 +74,7 @@ const SaveQuestion = ({
   return (
     <button
       type="button"
-      aria-label={saved ? "Remove question from collection" : "Save question"}
+      aria-label={t(saved ? "Remove question from collection" : "Save question")}
       aria-pressed={saved}
       disabled={isLoading || session.status === "loading"}
       className="flex size-8 items-center justify-center rounded-sm disabled:cursor-not-allowed disabled:opacity-50"

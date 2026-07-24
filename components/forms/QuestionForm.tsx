@@ -13,6 +13,7 @@ import {
   QuestionWorkbenchDraftSchema,
   type QuestionWorkbenchDraft,
 } from "@/lib/ai/question-analysis-schema";
+import { useI18n } from "@/lib/i18n/client";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { MDXEditorMethods } from "@mdxeditor/editor";
 import { Loader2Icon } from "lucide-react";
@@ -38,7 +39,6 @@ import { toast } from "sonner";
 import z from "zod";
 import TagCard from "../cards/TagCard";
 import AIQuestionWorkbench from "../questions/AIQuestionWorkbench";
-import DraftStatus from "./DraftStatus";
 import { Button } from "../ui/button";
 import {
   Field,
@@ -49,6 +49,7 @@ import {
   FieldLabel,
 } from "../ui/field";
 import { Input } from "../ui/input";
+import DraftStatus from "./DraftStatus";
 
 // MDXEditor 不支持服务端渲染，因此必须保证编辑器组件仅在客户端渲染。
 // 实现方式：使用 Next.js 的 dynamic 工具，并配置 { ssr: false }。
@@ -79,6 +80,7 @@ const isSameWorkbenchDraft = (
   left.tags.every((tag, index) => tag === right.tags[index]);
 
 const QuestionForm = ({ question, isEdit = false }: Params) => {
+  const { t } = useI18n();
   const router = useRouter();
   const session = useSession();
   const editorRef = useRef<MDXEditorMethods>(null);
@@ -97,6 +99,7 @@ const QuestionForm = ({ question, isEdit = false }: Params) => {
     },
   });
 
+  // useWatch() 是 React Hook Form 提供的一个 Hook，用来监听表单字段的变化。它会返回当前表单状态中指定字段的值，并在这些字段的值发生变化时触发组件重新渲染。
   const watchedValues = useWatch({ control: form.control });
   const draftData = useMemo<QuestionDraftData>(
     () => ({
@@ -173,7 +176,7 @@ const QuestionForm = ({ question, isEdit = false }: Params) => {
       typeof draft.content !== "string" ||
       !Array.isArray(draft.tags)
     ) {
-      toast.error("This draft could not be restored.");
+      toast.error(t("This draft could not be restored."));
       void discardDraft();
       return;
     }
@@ -257,8 +260,9 @@ const QuestionForm = ({ question, isEdit = false }: Params) => {
       ) {
         return {
           ok: false,
-          reason:
+          reason: t(
             "The draft changed before this suggestion was applied. Your newer work was kept.",
+          ),
         };
       }
 
@@ -269,8 +273,9 @@ const QuestionForm = ({ question, isEdit = false }: Params) => {
       ) {
         return {
           ok: false,
-          reason:
+          reason: t(
             "This change only adjusts whitespace at the start or end of the question, which the editor cannot apply safely.",
+          ),
         };
       }
 
@@ -284,7 +289,7 @@ const QuestionForm = ({ question, isEdit = false }: Params) => {
           ok: false,
           reason:
             parsed.error.issues[0]?.message ??
-            "This suggestion would make the draft invalid.",
+            t("This suggestion would make the draft invalid."),
         };
       }
 
@@ -301,7 +306,7 @@ const QuestionForm = ({ question, isEdit = false }: Params) => {
 
       return { ok: true, previousDraft, draft: parsed.data };
     },
-    [currentWorkbenchDraft, form],
+    [currentWorkbenchDraft, form, t],
   );
 
   const handleSuggestedTagAdd = useCallback(
@@ -313,15 +318,16 @@ const QuestionForm = ({ question, isEdit = false }: Params) => {
       if (!isSameWorkbenchDraft(previousDraft, expectedDraft)) {
         return {
           ok: false,
-          reason:
+          reason: t(
             "The draft changed before this tag was added. Your newer work was kept.",
+          ),
         };
       }
 
       if (!handleTagAdd(tag)) {
         return {
           ok: false,
-          reason: "This tag could not be added to the current draft.",
+          reason: t("This tag could not be added to the current draft."),
         };
       }
 
@@ -332,13 +338,13 @@ const QuestionForm = ({ question, isEdit = false }: Params) => {
           ok: false,
           reason:
             parsed.error.issues[0]?.message ??
-            "The updated draft is not valid yet.",
+            t("The updated draft is not valid yet."),
         };
       }
 
       return { ok: true, previousDraft, draft: parsed.data };
     },
-    [currentWorkbenchDraft, handleTagAdd],
+    [currentWorkbenchDraft, handleTagAdd, t],
   );
 
   const handleInputKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
@@ -393,16 +399,17 @@ const QuestionForm = ({ question, isEdit = false }: Params) => {
         if (result.success && result.data) {
           await clearDraft();
           if (draftOwnerRef.current !== requestOwner) return;
-          toast.success("Success", {
-            description: "Your question has been updated successfully.",
+          toast.success(t("Success"), {
+            description: t("Your question has been updated successfully."),
             position: "top-center",
           });
           router.push(ROUTES.QUESTION(result.data._id.toString()));
         } else {
-          toast.error(`Error ${result.status ?? ""}`.trim(), {
-            description:
+          toast.error(`${t("Error")} ${result.status ?? ""}`.trim(), {
+            description: t(
               result.errors?.message ||
-              "An error occurred while updating the question.",
+                "An error occurred while updating the question.",
+            ),
             position: "top-center",
           });
         }
@@ -417,16 +424,17 @@ const QuestionForm = ({ question, isEdit = false }: Params) => {
       if (result.success && result.data) {
         await clearDraft();
         if (draftOwnerRef.current !== requestOwner) return;
-        toast.success("Success", {
-          description: "Your question has been created successfully.",
+        toast.success(t("Success"), {
+          description: t("Your question has been created successfully."),
           position: "top-center",
         });
         router.push(ROUTES.QUESTION(result.data._id.toString()));
       } else {
-        toast.error(`Error ${result.status ?? ""}`.trim(), {
-          description:
+        toast.error(`${t("Error")} ${result.status ?? ""}`.trim(), {
+          description: t(
             result.errors?.message ||
-            "An error occurred while creating the question.",
+              "An error occurred while creating the question.",
+          ),
           position: "top-center",
         });
       }
@@ -455,19 +463,28 @@ const QuestionForm = ({ question, isEdit = false }: Params) => {
                 htmlFor="question-title"
                 className="paragraph-semibold text-dark400_light800"
               >
-                Question Title <span className="text-primary-500">*</span>
+                {t("Question Title")}{" "}
+                <span className="text-primary-500">*</span>
               </FieldLabel>
               <FieldContent>
                 <Input
                   {...field}
                   id="question-title"
+                  aria-invalid={fieldState.invalid}
+                  aria-describedby={
+                    fieldState.invalid ? "question-title-error" : undefined
+                  }
                   className="paragraph-regular background-light700_dark300 light-border-2 text-dark300_light700 no-focus min-h-[56px] border"
                 />
                 <FieldDescription className="body-regular mt-2.5 text-light-500">
-                  Be specific and imagine you&apos;re asking a question to
-                  another person.
+                  {t(
+                    "Be specific and imagine you're asking a question to another person.",
+                  )}
                 </FieldDescription>
-                <FieldError errors={[fieldState.error]} />
+                <FieldError
+                  id="question-title-error"
+                  errors={[fieldState.error]}
+                />
               </FieldContent>
             </Field>
           )}
@@ -482,7 +499,7 @@ const QuestionForm = ({ question, isEdit = false }: Params) => {
                 id="question-content-label"
                 className="paragraph-semibold text-dark400_light800"
               >
-                Detailed explanation of your problem{" "}
+                {t("Detailed explanation of your problem")}{" "}
                 <span className="text-primary-500">*</span>
               </FieldLabel>
               <FieldContent>
@@ -493,8 +510,9 @@ const QuestionForm = ({ question, isEdit = false }: Params) => {
                   fieldChange={field.onChange}
                 />
                 <FieldDescription className="body-regular mt-2.5 text-light-500">
-                  Introduce the problem and expand on what you&apos;ve put in
-                  the title.
+                  {t(
+                    "Introduce the problem and expand on what you've put in the title.",
+                  )}
                 </FieldDescription>
                 <FieldError errors={[fieldState.error]} />
               </FieldContent>
@@ -521,16 +539,20 @@ const QuestionForm = ({ question, isEdit = false }: Params) => {
                 htmlFor="question-tags"
                 className="paragraph-semibold text-dark400_light800"
               >
-                Tags <span className="text-primary-500">*</span>
+                {t("Tags")} <span className="text-primary-500">*</span>
               </FieldLabel>
               <FieldContent className="gap-3">
                 <div>
                   <Input
                     id="question-tags"
+                    aria-invalid={fieldState.invalid}
+                    aria-describedby={
+                      fieldState.invalid ? "question-tags-error" : undefined
+                    }
                     value={tagInput}
                     onChange={(event) => setTagInput(event.target.value)}
                     className="paragraph-regular background-light700_dark300 light-border-2 text-dark300_light700 no-focus min-h-[56px] border"
-                    placeholder="Add tags..."
+                    placeholder={t("Add tags...")}
                     onKeyDown={handleInputKeyDown}
                   />
                   {field.value.length > 0 && (
@@ -550,10 +572,14 @@ const QuestionForm = ({ question, isEdit = false }: Params) => {
                   )}
                 </div>
                 <FieldDescription className="body-regular mt-2.5 text-light-500">
-                  Add up to 3 tags to describe what your question is about. You
-                  need to press enter to add a tag.
+                  {t(
+                    "Add up to 3 tags to describe what your question is about. You need to press enter to add a tag.",
+                  )}
                 </FieldDescription>
-                <FieldError errors={[fieldState.error]} />
+                <FieldError
+                  id="question-tags-error"
+                  errors={[fieldState.error]}
+                />
               </FieldContent>
             </Field>
           )}
@@ -569,10 +595,10 @@ const QuestionForm = ({ question, isEdit = false }: Params) => {
           {isPending ? (
             <>
               <Loader2Icon className="mr-2 size-4 animate-spin" />
-              <span>Submitting...</span>
+              <span>{t("Submitting...")}</span>
             </>
           ) : (
-            <>{isEdit ? "Update Question" : "Ask A Question"}</>
+            <>{t(isEdit ? "Update Question" : "Ask A Question")}</>
           )}
         </Button>
       </div>

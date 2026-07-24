@@ -3,8 +3,17 @@ import NotificationPageList from "@/components/notifications/NotificationPageLis
 import Pagination from "@/components/Pagination";
 import { EMPTY_NOTIFICATIONS } from "@/constants/states";
 import { getNotifications } from "@/lib/dal/notification";
+import type { Metadata } from "next";
+import { getI18n } from "@/lib/i18n/server";
+
+export const metadata: Metadata = {
+  title: "Notifications",
+  description: "Review your private DevFlow answer and acceptance notifications.",
+  robots: { index: false, follow: false },
+};
 
 const NotificationsPage = async ({ searchParams }: RouteParams) => {
+  const { t } = await getI18n();
   const { page, pageSize } = await searchParams;
   const parsedPage = Number(page);
   const parsedPageSize = Number(pageSize);
@@ -22,9 +31,9 @@ const NotificationsPage = async ({ searchParams }: RouteParams) => {
 
   return (
     <section>
-      <h1 className="h1-bold text-dark100_light900">Notifications</h1>
+      <h1 className="h1-bold text-dark100_light900">{t("Notifications")}</h1>
       <p className="body-regular text-dark400_light700 mt-2">
-        Keep track of new answers and accepted solutions.
+        {t("Keep track of new answers and accepted solutions.")}
       </p>
 
       <DataRenderer

@@ -1,7 +1,10 @@
+"use client";
+
 import Image from "next/image";
 import Link from "next/link";
 
 import { processJobTitle } from "@/lib/utils";
+import { useI18n } from "@/lib/i18n/client";
 
 const allowedLogoHosts = new Set([
   "pixnio.com",
@@ -52,7 +55,8 @@ const JobLocation = ({
       {hasCountryFlag && (
         <Image
           src={`https://flagsapi.com/${countryCode}/flat/64.png`}
-          alt="country symbol"
+          alt=""
+          aria-hidden="true"
           width={16}
           height={16}
           className="rounded-full"
@@ -70,7 +74,9 @@ const JobLocation = ({
 
 // JobCard 组件用于显示单个职位的信息，包括公司标志、职位标题、职位描述、工作类型、薪资信息和申请链接。它接受一个 job 对象作为 props，并根据该对象中的信息渲染相应的内容。组件还使用了 JobLocation 组件来显示职位的地理位置信息。
 const JobCard = ({ job }: { job: Job }) => {
+  const { t } = useI18n();
   const {
+    employer_name,
     employer_logo,
     employer_website,
     job_employment_type,
@@ -86,7 +92,7 @@ const JobCard = ({ job }: { job: Job }) => {
   const applyUrl = safeHttpUrl(job_apply_link) ?? "/jobs";
 
   return (
-    <section className="background-light900_dark200 light-border shadow-light100_darknone flex flex-col items-start gap-6 rounded-lg border p-6 sm:flex-row sm:p-8">
+    <article className="background-light900_dark200 light-border shadow-light100_darknone flex flex-col items-start gap-6 rounded-lg border p-6 sm:flex-row sm:p-8">
       <div className="flex w-full justify-end sm:hidden">
         <JobLocation
           job_country={job_country}
@@ -104,7 +110,7 @@ const JobCard = ({ job }: { job: Job }) => {
           >
             <Image
               src={employerLogoUrl}
-              alt="company logo"
+              alt={`${employer_name || t("Company")} ${t("logo")}`}
               fill
               className="size-full object-contain p-2"
             />
@@ -112,7 +118,7 @@ const JobCard = ({ job }: { job: Job }) => {
         ) : (
           <Image
             src="/images/site-logo.svg"
-            alt="default site logo"
+            alt={t("Default company logo")}
             width={64}
             height={64}
             className="rounded-[10px]"
@@ -122,9 +128,9 @@ const JobCard = ({ job }: { job: Job }) => {
 
       <div className="w-full">
         <div className="flex-between flex-wrap gap-2">
-          <p className="base-semibold text-dark200_light900">
-            {processJobTitle(job_title)}
-          </p>
+          <h2 className="base-semibold text-dark200_light900">
+            {t(processJobTitle(job_title))}
+          </h2>
 
           <div className="hidden sm:flex">
             <JobLocation
@@ -144,7 +150,8 @@ const JobCard = ({ job }: { job: Job }) => {
             <div className="flex items-center gap-2">
               <Image
                 src="/icons/clock-2.svg"
-                alt="clock"
+                alt=""
+                aria-hidden="true"
                 width={20}
                 height={20}
               />
@@ -157,12 +164,13 @@ const JobCard = ({ job }: { job: Job }) => {
             <div className="flex items-center gap-2">
               <Image
                 src="/icons/currency-dollar-circle.svg"
-                alt="dollar symbol"
+                alt=""
+                aria-hidden="true"
                 width={20}
                 height={20}
               />
 
-              <p className="body-medium text-light-500">Not disclosed</p>
+              <p className="body-medium text-light-500">{t("Not disclosed")}</p>
             </div>
           </div>
 
@@ -172,18 +180,19 @@ const JobCard = ({ job }: { job: Job }) => {
             rel="noopener noreferrer"
             className="flex items-center gap-2"
           >
-            <p className="body-semibold primary-text-gradient">View job</p>
+            <p className="body-semibold primary-text-gradient">{t("View job")}</p>
 
             <Image
               src="/icons/arrow-up-right.svg"
-              alt="arrow up right"
+              alt=""
+              aria-hidden="true"
               width={20}
               height={20}
             />
           </Link>
         </div>
       </div>
-    </section>
+    </article>
   );
 };
 

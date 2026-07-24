@@ -1,8 +1,11 @@
+"use client";
+
 import ROUTES from "@/constants/routes";
 import { cn, getDevIconClassName, getTechDescription } from "@/lib/utils";
 import Image from "next/image";
 import Link from "next/link";
 import { Badge } from "../ui/badge";
+import { useI18n } from "@/lib/i18n/client";
 
 interface Props {
   _id: string;
@@ -25,6 +28,7 @@ const TagCard = ({
   remove,
   handleRemove,
 }: Props) => {
+  const { t } = useI18n();
   const iconClass = getDevIconClassName(name);
   // getTechDescription 是一个实用函数，用于根据技术名称获取对应的描述信息。它通常会返回一个字符串，描述该技术的特点、用途或者相关信息。在 TagCard 组件中，我们可以使用这个函数来为每个标签提供一个简短的描述，帮助用户更好地理解这个标签代表的技术或者主题。
   const iconDescription = getTechDescription(name);
@@ -36,7 +40,7 @@ const TagCard = ({
           text-light400_light500 rounded-md border-none px-4 py-2 uppercase flex gap-2"
       >
         <div className="flex-center space-x-2">
-          <i className={`${iconClass} text-sm`}></i>
+          <i className={`${iconClass} text-sm`} aria-hidden="true" />
           <span>{name}</span>
         </div>
 
@@ -45,9 +49,9 @@ const TagCard = ({
             src="/icons/close.svg"
             width={12}
             height={12}
-            alt="close icon"
-            className="cursor-pointer invert-0 dark:invert"
-            onClick={handleRemove}
+            alt=""
+            aria-hidden="true"
+            className="invert-0 dark:invert"
           />
         )}
       </Badge>
@@ -64,7 +68,12 @@ const TagCard = ({
     return isButton ? (
       // 如果是按钮的话，点击默认会提交表单，所以这里阻止默认行为
       <button
-        onClick={(e) => e.preventDefault()}
+        type="button"
+        aria-label={t("Remove {name} tag", { name })}
+        onClick={(event) => {
+          event.preventDefault();
+          handleRemove?.();
+        }}
         className="flex justify-between gap-2"
       >
         {content}
@@ -91,14 +100,14 @@ const TagCard = ({
         </div>
 
         <p className="small-regular text-dark500_light700 mt-5 w-full line-clamp-3">
-          {iconDescription}
+          {t(iconDescription)}
         </p>
 
         <p className="small-medium text-dark400_light500 mt-3.5">
           <span className="body-semibold primary-text-gradient mr-2.5">
             {questions}+
           </span>
-          Questions
+          {t("Questions")}
         </p>
       </article>
     </Link>

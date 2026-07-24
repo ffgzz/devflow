@@ -5,8 +5,40 @@ import LocalSearch from "@/components/search/LocalSearch";
 import ROUTES from "@/constants/routes";
 import { EMPTY_QUESTION } from "@/constants/states";
 import { getTagQuestions } from "@/lib/actions/tag.action";
+import { getTagSeo } from "@/lib/dal/seo";
+import { createPageMetadata } from "@/lib/seo";
+import type { Metadata } from "next";
+import { getI18n } from "@/lib/i18n/server";
+
+export async function generateMetadata({
+  params,
+}: RouteParams): Promise<Metadata> {
+  const { id } = await params;
+
+  try {
+    const tag = await getTagSeo(id);
+    if (!tag) {
+      return {
+        title: "Topic not found",
+        robots: { index: false, follow: false },
+      };
+    }
+
+    return createPageMetadata({
+      title: `${tag.name} Questions`,
+      description: `Explore community questions and practical answers about ${tag.name}.`,
+      pathname: ROUTES.TAG(id),
+    });
+  } catch {
+    return {
+      title: "Programming Topic",
+      robots: { index: false, follow: false },
+    };
+  }
+}
 
 const page = async ({ params, searchParams }: RouteParams) => {
+  const { t } = await getI18n();
   const { id } = await params;
   const { page, pageSize, query } = await searchParams;
 
@@ -31,7 +63,7 @@ const page = async ({ params, searchParams }: RouteParams) => {
         <LocalSearch
           route={ROUTES.TAG(id)}
           imgSrc="/icons/search.svg"
-          placeholder="Search questions..."
+          placeholder={t("Search questions...")}
           otherClasses="flex-1"
         />
       </section>

@@ -8,6 +8,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import React from "react";
+import { useI18n } from "@/lib/i18n/client";
 
 const NavLinks = ({
   isMobileNav = false,
@@ -17,6 +18,7 @@ const NavLinks = ({
   userId?: string;
 }) => {
   const pathname = usePathname();
+  const { t } = useI18n();
 
   return (
     <>
@@ -35,7 +37,14 @@ const NavLinks = ({
         const LinkComponent = (
           <Link
             href={resolvedRoute}
+            prefetch={
+              !userId &&
+              (item.route === "/collection" || item.route === "/ask-question")
+                ? false
+                : undefined
+            }
             key={item.label}
+            aria-current={isActive ? "page" : undefined}
             className={cn(
               isActive
                 ? "primary-gradient rounded-lg text-light-900"
@@ -47,7 +56,8 @@ const NavLinks = ({
               src={item.imgURL}
               width={20}
               height={20}
-              alt={item.label}
+              alt=""
+              aria-hidden="true"
               className={cn({ "invert-colors": !isActive })}
             />
             {/* 低于 lg 屏幕时隐藏 */}
@@ -57,7 +67,7 @@ const NavLinks = ({
                 !isMobileNav && "max-lg:hidden",
               )}
             >
-              {item.label}
+              {t(item.label)}
             </p>
           </Link>
         );

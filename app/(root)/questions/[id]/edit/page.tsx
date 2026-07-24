@@ -2,7 +2,14 @@ import { auth } from "@/auth";
 import QuestionForm from "@/components/forms/QuestionForm";
 import ROUTES from "@/constants/routes";
 import { getQuestion } from "@/lib/actions/question.action";
+import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
+
+export const metadata: Metadata = {
+  title: "Edit Question",
+  description: "Edit a DevFlow programming question.",
+  robots: { index: false, follow: false },
+};
 
 const EditQuestion = async ({ params }: RouteParams) => {
   const { id } = await params;
@@ -24,11 +31,7 @@ const EditQuestion = async ({ params }: RouteParams) => {
     return redirect(ROUTES.QUESTION(id));
   }
 
-  return (
-    <main>
-      <QuestionForm question={question} isEdit />
-    </main>
-  );
+  return <QuestionForm question={question} isEdit />;
 };
 
 export default EditQuestion;

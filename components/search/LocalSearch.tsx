@@ -4,7 +4,7 @@
 import { formUrlQuery, removeKeysFromQuery } from "@/lib/url";
 import Image from "next/image";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { Input } from "../ui/input";
 
 interface Props {
@@ -24,6 +24,7 @@ const LocalSearch = ({
   iconPosition = "left",
 }: Props) => {
   const router = useRouter();
+  const inputId = useId();
   const searchParams = useSearchParams();
   const pathname = usePathname();
   const searchParamsString = searchParams.toString();
@@ -75,20 +76,28 @@ const LocalSearch = ({
 
   return (
     <div
+      role="search"
+      aria-label={placeholder}
       className={`background-light800_darkgradient flex min-h-[56px] 
       grow items-center gap-4 rounded-[10px] px-4 ${otherClasses}`}
     >
+      <label htmlFor={inputId} className="sr-only">
+        {placeholder}
+      </label>
       {iconPosition === "left" && (
         <Image
           src={imgSrc}
           width={24}
           height={24}
-          alt="Search"
-          className="cursor-pointer"
+          alt=""
+          aria-hidden="true"
         />
       )}
       <Input
-        type="text"
+        type="search"
+        id={inputId}
+        name="query"
+        autoComplete="off"
         placeholder={placeholder}
         value={searchQuery}
         onChange={(e) => setSearchQuery(e.target.value)}
@@ -100,8 +109,8 @@ const LocalSearch = ({
           src={imgSrc}
           width={15}
           height={15}
-          alt="Search"
-          className="cursor-pointer"
+          alt=""
+          aria-hidden="true"
         />
       )}
     </div>

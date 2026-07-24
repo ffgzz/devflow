@@ -11,6 +11,7 @@ import type {
   GlobalSearchResult,
   GlobalSearchType,
 } from "@/lib/dal/global-search";
+import { useI18n } from "@/lib/i18n/client";
 
 interface SearchAPIResponse {
   success: boolean;
@@ -19,6 +20,7 @@ interface SearchAPIResponse {
 }
 
 const GlobalSearch = () => {
+  const { t } = useI18n();
   const router = useRouter();
   const pathname = usePathname();
   const listboxId = useId();
@@ -99,7 +101,7 @@ const GlobalSearch = () => {
         const payload = (await response.json()) as SearchAPIResponse;
 
         if (!response.ok || !payload.success || !payload.data) {
-          throw new Error(payload.error?.message ?? "Search is unavailable.");
+          throw new Error(payload.error?.message ?? t("Search is unavailable."));
         }
 
         // AbortController stops most stale requests. The sequence check also
@@ -122,7 +124,7 @@ const GlobalSearch = () => {
         setError(
           requestError instanceof Error
             ? requestError.message
-            : "Search is unavailable.",
+            : t("Search is unavailable."),
         );
       } finally {
         if (sequence === requestSequenceRef.current) setIsLoading(false);
@@ -133,7 +135,7 @@ const GlobalSearch = () => {
       window.clearTimeout(debounceTimer);
       controller.abort();
     };
-  }, [trimmedSearch, type]);
+  }, [t, trimmedSearch, type]);
 
   const selectResult = (item: GlobalSearchItem) => {
     setIsOpen(false);
@@ -178,7 +180,7 @@ const GlobalSearch = () => {
       <div className="background-light800_darkgradient relative flex min-h-[56px] grow items-center gap-1 rounded-xl px-4">
         <button
           type="button"
-          aria-label="Focus global search"
+          aria-label={t("Focus global search")}
           onClick={() => inputRef.current?.focus()}
         >
           <Image
@@ -194,14 +196,14 @@ const GlobalSearch = () => {
           ref={inputRef}
           type="search"
           role="combobox"
-          aria-label="Global search"
+          aria-label={t("Global search")}
           aria-autocomplete="list"
           aria-expanded={isOpen}
           aria-controls={listboxId}
           aria-activedescendant={
             activeIndex >= 0 ? `${listboxId}-option-${activeIndex}` : undefined
           }
-          placeholder="Search anything…  ⌘K"
+          placeholder={`${t("Search anything...")}  ⌘K`}
           value={search}
           onFocus={() => setIsOpen(true)}
           onChange={(event) => {

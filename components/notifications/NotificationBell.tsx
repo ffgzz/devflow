@@ -26,6 +26,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+import { useI18n } from "@/lib/i18n/client";
 
 interface NotificationBellProps {
   initialNotifications: NotificationDTO[];
@@ -36,6 +37,7 @@ const NotificationBell = ({
   initialNotifications,
   initialUnreadCount,
 }: NotificationBellProps) => {
+  const { t } = useI18n();
   const router = useRouter();
   const [notificationState, setNotificationState] = useState({
     notifications: initialNotifications,
@@ -69,8 +71,8 @@ const NotificationBell = ({
         });
 
         if (!result.success || !result.data) {
-          toast.error("Failed to mark the notification as read.", {
-            description: result.errors?.message,
+          toast.error(t("Failed to mark the notification as read."), {
+            description: result.errors?.message ? t(result.errors.message) : undefined,
           });
         } else {
           const change = {
@@ -86,8 +88,8 @@ const NotificationBell = ({
         }
       }
     } catch {
-      toast.error("Failed to mark the notification as read.", {
-        description: "Please check your connection and try again.",
+      toast.error(t("Failed to mark the notification as read."), {
+        description: t("Please check your connection and try again."),
       });
     } finally {
       operationInFlight.current = false;
@@ -107,8 +109,8 @@ const NotificationBell = ({
       const result = await markAllNotificationsRead();
 
       if (!result.success || !result.data) {
-        toast.error("Failed to mark all notifications as read.", {
-          description: result.errors?.message,
+        toast.error(t("Failed to mark all notifications as read."), {
+          description: result.errors?.message ? t(result.errors.message) : undefined,
         });
       } else {
         const change = {
@@ -122,8 +124,8 @@ const NotificationBell = ({
         publishNotificationChange(change);
       }
     } catch {
-      toast.error("Failed to mark all notifications as read.", {
-        description: "Please check your connection and try again.",
+      toast.error(t("Failed to mark all notifications as read."), {
+        description: t("Please check your connection and try again."),
       });
     } finally {
       operationInFlight.current = false;
@@ -141,13 +143,13 @@ const NotificationBell = ({
       if (result.success && result.data) {
         setNotificationState(result.data);
       } else {
-        toast.error("Could not refresh notifications.", {
-          description: result.errors?.message || "Please try again later.",
+        toast.error(t("Could not refresh notifications."), {
+          description: t(result.errors?.message || "Please try again later."),
         });
       }
     } catch {
-      toast.error("Could not refresh notifications.", {
-        description: "Please check your connection and try again.",
+      toast.error(t("Could not refresh notifications."), {
+        description: t("Please check your connection and try again."),
       });
     } finally {
       operationInFlight.current = false;
@@ -169,8 +171,8 @@ const NotificationBell = ({
           className="relative"
           aria-label={
             unreadCount > 0
-              ? `Notifications, ${unreadCount} unread`
-              : "Notifications"
+              ? t("Notifications, {count} unread", { count: unreadCount })
+              : t("Notifications")
           }
         >
           <Bell className="size-5 text-dark-400 dark:text-light-900" />
@@ -190,10 +192,10 @@ const NotificationBell = ({
         <div className="flex items-center justify-between px-4 py-3">
           <div>
             <p className="base-semibold text-dark200_light900">
-              Notifications
+              {t("Notifications")}
             </p>
             <p className="subtle-regular text-dark400_light500">
-              {unreadCount > 0 ? `${unreadCount} unread` : "You're all caught up"}
+              {unreadCount > 0 ? t("{count} unread", { count: unreadCount }) : t("You're all caught up")}
             </p>
           </div>
           <Button
@@ -205,7 +207,7 @@ const NotificationBell = ({
             className="text-primary-500"
           >
             <CheckCheck className="size-4" />
-            Mark all read
+            {t("Mark all read")}
           </Button>
         </div>
 
@@ -231,10 +233,10 @@ const NotificationBell = ({
             <div className="px-5 py-10 text-center">
               <Bell className="mx-auto size-8 text-light-500" />
               <p className="small-semibold text-dark300_light800 mt-3">
-                No notifications yet
+                {t("No notifications yet")}
               </p>
               <p className="subtle-regular text-dark400_light500 mt-1">
-                New answers and accepted answers will show up here.
+                {t("New answers and accepted answers will show up here.")}
               </p>
             </div>
           )}
@@ -246,7 +248,7 @@ const NotificationBell = ({
             href={ROUTES.NOTIFICATIONS}
             className="small-semibold block w-full px-4 py-3 text-center text-primary-500"
           >
-            View all notifications
+            {t("View all notifications")}
           </Link>
         </DropdownMenuItem>
       </DropdownMenuContent>

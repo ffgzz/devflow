@@ -23,6 +23,7 @@ import {
   FieldError,
   FieldGroup,
 } from "../ui/field";
+import { useI18n } from "@/lib/i18n/client";
 
 // MDXEditor 不支持服务端渲染，因此必须保证编辑器组件仅在客户端渲染。
 // 实现方式：使用 Next.js 的 dynamic 工具，并配置 { ssr: false }。
@@ -38,6 +39,7 @@ interface Props {
 }
 
 const AnswerForm = ({ questionId, questionTitle, questionContent }: Props) => {
+  const { t } = useI18n();
   const [isAnswering, startAnsweringTransition] = useTransition();
   const [isAISubmitting, setIsAISubmitting] = useState(false);
   const session = useSession();
@@ -101,7 +103,7 @@ const AnswerForm = ({ questionId, questionTitle, questionContent }: Props) => {
   const handleRestoreDraft = () => {
     const draft = restoreDraft();
     if (!draft || typeof draft.content !== "string") {
-      toast.error("This draft could not be restored.");
+      toast.error(t("This draft could not be restored."));
       void discardDraft();
       return;
     }
@@ -129,14 +131,14 @@ const AnswerForm = ({ questionId, questionTitle, questionContent }: Props) => {
         await clearDraft({ resume: true });
         if (draftOwnerRef.current !== requestOwner) return;
 
-        toast.success("Success", {
-          description: "Your answer has been posted.",
+        toast.success(t("Success"), {
+          description: t("Your answer has been posted."),
           position: "top-center",
         });
 
       } else {
-        toast.error("Failed to post answer", {
-          description: result.errors?.message,
+        toast.error(t("Failed to post answer"), {
+          description: result.errors?.message ? t(result.errors.message) : undefined,
           position: "top-center",
         });
       }
@@ -146,10 +148,10 @@ const AnswerForm = ({ questionId, questionTitle, questionContent }: Props) => {
   const generateAIAnswer = async () => {
     // 如果用户未认证，我们就使用 toast 提示用户需要登录才能使用 AI 回答生成功能。toast 是一个流行的 React 通知库，用于显示临时消息。
     if (session.status !== "authenticated") {
-      return toast.error("please log in", {
+      return toast.error(t("Please log in"), {
         position: "top-center",
         description:
-          "You need to be logged in to use the AI answer generation feature.",
+          t("You need to be logged in to use the AI answer generation feature."),
       });
     }
     // 设置 isAISubmitting 状态为 true，表示 AI 回答正在生成中。这通常会触发界面上的加载状态，例如禁用按钮和显示加载动画，以防止用户在等待 AI 生成回答时进行其他操作。
@@ -167,17 +169,17 @@ const AnswerForm = ({ questionId, questionTitle, questionContent }: Props) => {
       if (draftOwnerRef.current !== requestOwner) return;
 
       if (!success) {
-        return toast.error("Failed to generate AI answer", {
+        return toast.error(t("Failed to generate AI answer"), {
           position: "top-center",
-          description: errors?.message,
+          description: errors?.message ? t(errors.message) : undefined,
         });
       }
 
       const formattedAnswer = data?.replace(/<br>/g, "").trim();
       if (!formattedAnswer) {
-        return toast.error("Failed to generate AI answer", {
+        return toast.error(t("Failed to generate AI answer"), {
           position: "top-center",
-          description: "The AI response was empty.",
+          description: t("The AI response was empty."),
         });
       }
 
@@ -190,16 +192,16 @@ const AnswerForm = ({ questionId, questionTitle, questionContent }: Props) => {
         });
       }
 
-      toast.success("AI answer generated", {
-        description: "The AI-generated answer has been added to the editor.",
+      toast.success(t("AI answer generated"), {
+        description: t("The AI-generated answer has been added to the editor."),
         position: "top-center",
       });
     } catch (error) {
       if (draftOwnerRef.current !== requestOwner) return;
-      return toast.error("Failed to generate AI answer", {
+      return toast.error(t("Failed to generate AI answer"), {
         position: "top-center",
         description:
-          error instanceof Error ? error.message : "An unknown error occurred.",
+          error instanceof Error ? t(error.message) : t("An unknown error occurred."),
       });
     } finally {
       setIsAISubmitting(false);
@@ -213,7 +215,7 @@ const AnswerForm = ({ questionId, questionTitle, questionContent }: Props) => {
           id="answer-editor-label"
           className="paragraph-semibold text-dark400_light800"
         >
-          Write your answer here
+          {t("Write your answer here")}
         </h4>
         <Button
           className="btn light-border-2 gap-1.5 rounded-md border px-4 py-2.5 text-primary-500 shadow-none "
@@ -223,18 +225,19 @@ const AnswerForm = ({ questionId, questionTitle, questionContent }: Props) => {
           {isAISubmitting ? (
             <>
               <Loader2Icon className="mr-2 size-4 animate-spin" />
-              <span>Generating...</span>
+              <span>{t("Generating...")}</span>
             </>
           ) : (
             <>
               <Image
                 src="/icons/stars.svg"
-                alt="Generate AI Answer"
+                alt=""
+                aria-hidden="true"
                 width={12}
                 height={12}
                 className="object-contain"
               />
-              Generate AI Answer
+              {t("Generate AI Answer")}
             </>
           )}
         </Button>
@@ -265,7 +268,7 @@ const AnswerForm = ({ questionId, questionTitle, questionContent }: Props) => {
                     fieldChange={field.onChange}
                   />
                   <FieldDescription className="body-regular mt-2.5 text-light-500">
-                    Provide a detailed answer with at least 100 characters.
+                    {t("Provide a detailed answer with at least 100 characters.")}
                   </FieldDescription>
                   <FieldError errors={[fieldState.error]} />
                 </FieldContent>
@@ -283,10 +286,10 @@ const AnswerForm = ({ questionId, questionTitle, questionContent }: Props) => {
             {isAnswering ? (
               <>
                 <Loader2Icon className="mr-2 size-4 animate-spin" />
-                <span>Posting...</span>
+                <span>{t("Posting...")}</span>
               </>
             ) : (
-              "Post Answer"
+              t("Post Answer")
             )}
           </Button>
         </div>

@@ -5,14 +5,14 @@ import Answer, { IAnswerDoc } from "@/database/answer.model";
 import Question from "@/database/question.model";
 import Vote from "@/database/vote.model";
 import {
+  recordContentInteraction,
+  rollbackVoteInteractionsForTargets,
+} from "@/lib/dal/interaction";
+import {
   createNotification,
   deleteNotificationEvent,
   deleteNotificationsForAnswer,
 } from "@/lib/dal/notification";
-import {
-  recordContentInteraction,
-  rollbackVoteInteractionsForTargets,
-} from "@/lib/dal/interaction";
 import mongoose from "mongoose";
 import { revalidatePath } from "next/cache";
 import action from "../handlers/action";
@@ -190,6 +190,7 @@ export async function getAnswers(
   }
 }
 
+// 设置答案采纳状态的函数，只有问题的作者才能设置答案为采纳状态
 export async function setAnswerAcceptance(
   params: SetAnswerAcceptanceParams,
 ): Promise<ActionResponse<{ acceptedAnswerId: string | null }>> {
@@ -272,11 +273,7 @@ export async function setAnswerAcceptance(
       if (currentAcceptedAnswerId === answerId) {
         question.acceptedAnswer = null;
         await question.save({ session });
-        await deleteNotificationEvent(
-          "answer_accepted",
-          answerId,
-          session,
-        );
+        await deleteNotificationEvent("answer_accepted", answerId, session);
         acceptedAnswerId = null;
         return;
       }
@@ -330,7 +327,9 @@ export async function deleteAnswer(
         throw new ForbiddenError("You're not allowed to delete this answer");
       }
 
-      const question = await Question.findById(answer.question).session(session);
+      const question = await Question.findById(answer.question).session(
+        session,
+      );
       if (!question) throw new NotFoundError("Question");
 
       questionId = question._id.toString();
@@ -355,7 +354,9 @@ export async function deleteAnswer(
       await Vote.deleteMany({ id: answerId, type: "answer" }).session(session);
       await deleteNotificationsForAnswer(answerId, session);
 
-      const deletion = await Answer.deleteOne({ _id: answerId }).session(session);
+      const deletion = await Answer.deleteOne({ _id: answerId }).session(
+        session,
+      );
       if (deletion.deletedCount !== 1) {
         throw new Error("Failed to delete answer");
       }

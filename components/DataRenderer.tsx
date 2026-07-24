@@ -2,6 +2,7 @@ import { DEFAULT_EMPTY, DEFAULT_ERROR } from "@/constants/states";
 import Image from "next/image";
 import Link from "next/link";
 import { Button } from "./ui/button";
+import { getI18n } from "@/lib/i18n/server";
 
 interface Props<T> {
   success: boolean;
@@ -83,13 +84,14 @@ const StateSkeleton = ({
 );
 
 // 逗号是为了告诉编译器“这是泛型，不是 JSX 标签”。也可以写成 <T extends unknown>
-const DataRenderer = <T,>({
+const DataRenderer = async <T,>({
   success,
   error,
   data,
   empty = DEFAULT_EMPTY,
   render,
 }: Props<T>) => {
+  const { t } = await getI18n();
   // 如果请求失败，展示错误状态
   if (!success) {
     return (
@@ -97,15 +99,15 @@ const DataRenderer = <T,>({
         image={{
           light: "/images/light-error.png",
           dark: "/images/dark-error.png",
-          alt: "Error state Illustration",
+          alt: t("Error state Illustration"),
         }}
-        title={error?.message || DEFAULT_ERROR.title}
+        title={t(error?.message || DEFAULT_ERROR.title)}
         message={
           error?.details
             ? JSON.stringify(error.details, null, 2)
-            : DEFAULT_ERROR.message
+            : t(DEFAULT_ERROR.message)
         }
-        button={DEFAULT_ERROR.button}
+        button={{ ...DEFAULT_ERROR.button, text: t(DEFAULT_ERROR.button.text) }}
       />
     );
   }
@@ -117,11 +119,11 @@ const DataRenderer = <T,>({
         image={{
           light: "/images/light-illustration.png",
           dark: "/images/dark-illustration.png",
-          alt: "Empty state Illustration",
+          alt: t("Empty state Illustration"),
         }}
-        title={empty.title}
-        message={empty.message}
-        button={empty.button}
+        title={t(empty.title)}
+        message={t(empty.message)}
+        button={empty.button ? { ...empty.button, text: t(empty.button.text) } : undefined}
       />
     );
   }

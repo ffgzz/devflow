@@ -14,6 +14,7 @@ import {
   TerminalIcon,
   Trash2Icon,
 } from "lucide-react";
+import { useI18n } from "@/lib/i18n/client";
 
 interface Props {
   status: SandboxStatus;
@@ -68,17 +69,18 @@ const ConsolePanel = ({
   onClear,
   className = "",
 }: Props) => {
+  const { t } = useI18n();
   const detail = statusDetails[status];
 
   return (
     <section
-      aria-label="Sandbox console"
+      aria-label={t("Sandbox console")}
       className={`flex min-h-[260px] flex-col overflow-hidden rounded-xl border border-slate-800 bg-[#090d18] ${className}`}
     >
       <div className="flex min-h-12 items-center justify-between gap-3 border-b border-slate-800 px-4">
         <div className="flex items-center gap-2">
           <TerminalIcon className="size-4 text-slate-400" />
-          <h2 className="text-sm font-semibold text-slate-100">Console</h2>
+          <h2 className="text-sm font-semibold text-slate-100">{t("Console")}</h2>
           <Badge variant="outline" className={detail.className}>
             {(status === "starting" || status === "running") && (
               <Loader2Icon className="animate-spin" />
@@ -87,7 +89,7 @@ const ConsolePanel = ({
             {(status === "error" || status === "timed-out") && (
               <CircleAlertIcon />
             )}
-            {detail.label}
+            {t(detail.label)}
           </Badge>
           {durationMs !== null && (
             <span className="inline-flex items-center gap-1 text-xs text-slate-500">
@@ -101,7 +103,7 @@ const ConsolePanel = ({
           type="button"
           size="icon-sm"
           variant="ghost"
-          aria-label="Clear console"
+          aria-label={t("Clear console")}
           onClick={onClear}
           className="text-slate-400 hover:bg-slate-800 hover:text-slate-100"
         >
@@ -114,9 +116,9 @@ const ConsolePanel = ({
         className="custom-scrollbar max-h-[390px] min-h-[210px] flex-1 overflow-auto p-4 font-mono text-xs leading-6"
       >
         {entries.length === 0 ? (
-          <div className="flex h-full min-h-40 flex-col items-center justify-center gap-2 text-center text-slate-600">
+          <div className="flex h-full min-h-40 flex-col items-center justify-center gap-2 text-center text-slate-400">
             <TerminalIcon className="size-7" />
-            <p>Run the code to see logs, result values, and errors.</p>
+            <p>{t("Run the code to see logs, result values, and errors.")}</p>
           </div>
         ) : (
           entries.map((entry) => (

@@ -13,6 +13,7 @@ DevFlow 是一个面向开发者的问答社区。用户可以发布编程问题
 - `⌘/Ctrl + K` 全局搜索面板：全文问题检索、分类筛选、键盘导航、可取消请求与回答深链
 - 可解释推荐信息流：真实浏览/投票/收藏/回答信号、30 天半衰期、冷启动趋势补齐、推荐理由与“不感兴趣 + Undo”
 - 首页使用 HMAC 签名的 cursor 与无限滚动，固定 `asOf`、量化分数并以 `createdAt/_id` 完成稳定排序；社区和个人主页保留适合各自场景的分页
+- 可观测性基线：Core Web Vitals、全局客户端异常、React 错误边界与 Next.js 服务端请求错误；默认关闭且可采样，无第三方账号时直接输出结构化日志
 - AI 提问分析台：流式质量评分、缺失信息、标签建议、可解释相似问题，以及可逐条应用和安全撤销的局部 Diff
 - AI 分析具有小时/每日双层额度；同一次额度内最多尝试 2 次（失败后至多自动重试 1 次）
 - Code Lab 浏览器代码沙箱：支持 JavaScript 与 HTML/CSS/JS，包含运行/停止/重置、日志、异常、超时和本地 Fork
@@ -34,7 +35,9 @@ DevFlow 是一个面向开发者的问答社区。用户可以发布编程问题
 | 代码沙箱   | Web Worker、sandbox iframe、MessageChannel、父线程超时控制    |
 | 内容       | MDX Editor、next-mdx-remote（仅按安全 Markdown 渲染）         |
 | AI         | Vercel AI SDK、OpenAI-compatible provider                     |
-| 工程化     | ESLint、TypeScript、pnpm、GitHub Actions                      |
+| 工程化     | ESLint、TypeScript、Vitest、Playwright、Lighthouse CI、GitHub Actions |
+| 可观测性   | Core Web Vitals、Next.js instrumentation、Pino 结构化日志       |
+| 部署       | Next.js standalone、Docker、多阶段非 root 运行镜像              |
 
 ## 架构
 
@@ -53,6 +56,9 @@ flowchart LR
   Mongoose --> MongoDB[(MongoDB)]
   Routes --> AI["AI provider"]
   Actions --> Jobs["Job and location APIs"]
+  Browser --> Telemetry["Privacy-bounded telemetry"]
+  Telemetry --> ObserveRoute["Same-origin event route"]
+  ObserveRoute --> Logs["Structured logs / optional collector"]
 ```
 
 主要代码边界：
@@ -62,6 +68,13 @@ flowchart LR
 - `lib/actions/`：输入验证、授权、业务逻辑和缓存失效。
 - `database/`：Mongoose Schema 和 Model。
 - `scripts/`：本地健康检查与幂等演示数据初始化。
+
+更深入的项目资料：
+
+- [系统架构与关键设计](./docs/ARCHITECTURE.md)
+- [测试分层与验收清单](./docs/TESTING.md)
+- [生产部署、监控与回滚](./docs/DEPLOYMENT.md)
+- [面试演示与录屏脚本](./docs/DEMO.md)
 
 ### 推荐信息流的边界
 
@@ -111,6 +124,8 @@ cp .env.example .env.local
 ```dotenv
 MONGODB_URI=your-local-or-atlas-connection-string
 AUTH_SECRET=your-long-random-secret
+AUTH_URL=http://localhost:3000
+NEXT_PUBLIC_APP_URL=http://localhost:3000
 DEMO_USER_PASSWORD=your-own-strong-demo-password
 ```
 
@@ -176,6 +191,8 @@ pnpm dev
 | -------------------------------------------------- | -------- | ---------------------------------------------------------------- |
 | `MONGODB_URI`                                      | 是       | 服务端 MongoDB 连接字符串                                        |
 | `AUTH_SECRET`                                      | 是       | Auth.js 签名密钥                                                 |
+| `AUTH_URL`                                         | 生产必需 | Auth.js 信任的公开 HTTPS 来源与 OAuth 回调基址                  |
+| `NEXT_PUBLIC_APP_URL`                              | 生产必需 | Canonical、Open Graph、robots 和 sitemap 使用的公开 HTTPS 域名   |
 | `AUTH_GITHUB_ID` / `AUTH_GITHUB_SECRET`            | 否       | GitHub OAuth                                                     |
 | `AUTH_GOOGLE_ID` / `AUTH_GOOGLE_SECRET`            | 否       | Google OAuth                                                     |
 | `AI_API_KEY`                                       | 否       | AI provider 服务端密钥                                           |
@@ -188,6 +205,10 @@ pnpm dev
 | `RAPID_API_KEY`                                    | 否       | 职位搜索 API                                                     |
 | `DEFAULT_JOB_LOCATION`                             | 否       | 职位页无筛选条件时使用的默认地区                                 |
 | `LOG_LEVEL`                                        | 否       | 服务端日志级别，默认 `info`                                      |
+| `OBSERVABILITY_ENABLED`                            | 否       | 运行时开启服务端错误及同源监控接口，默认关闭                     |
+| `NEXT_PUBLIC_OBSERVABILITY_ENABLED`                | 否       | 构建时开启浏览器性能/错误采集，不是密钥，默认关闭          |
+| `NEXT_PUBLIC_WEB_VITALS_SAMPLE_RATE`               | 否       | Web Vitals 页面级采样率 `0–1`，默认 `0.1`                            |
+| `OBSERVABILITY_ENDPOINT` / `OBSERVABILITY_TOKEN`   | 否       | 可选的服务端 HTTPS 收集端与 Bearer Token                            |
 | `DEMO_USER_PASSWORD`                               | 仅 seed  | 本地演示账号密码                                                 |
 
 `NEXT_PUBLIC_` 前缀的值会在构建时进入浏览器包，不能用于密钥、数据库 URI 或其他秘密。浏览器访问本项目 API 时固定使用同源 `/api`。完整模板和注释见 [`.env.example`](./.env.example)。
@@ -198,6 +219,9 @@ pnpm dev
 pnpm lint       # ESLint
 pnpm typecheck  # TypeScript，不产生文件
 pnpm check      # lint + typecheck
+pnpm test:unit  # Vitest 纯逻辑与组件测试
+pnpm test:e2e   # Playwright 核心用户路径
+pnpm test:lighthouse # Lighthouse 性能、可访问性、SEO 与最佳实践预算
 pnpm check:week3-search # 检查中英混合分词、技术别名与输入上限
 pnpm check:week4-draft-edits # 检查局部 Diff 的应用、撤销与 CAS 冲突保护
 pnpm check:week4-stream # 检查 AI 流式事件顺序与受控重试协议
@@ -212,7 +236,9 @@ pnpm migrate:week3 # 只读审计检索词与索引；加 --apply 才同步并�
 pnpm migrate:week7 # 只读审计浏览去重和 Feed 索引；加 --apply 才执行
 ```
 
-GitHub Actions 会在 push 和 pull request 时执行依赖安装、lint、typecheck、第四周 AI Diff/流协议检查、第五至六周沙箱协议检查、第七周推荐/cursor 检查、MongoDB 健康检查、两次演示数据初始化、第二/三/七周数据与索引迁移验证和生产构建。连续执行两次 seed 可以及时发现幂等性回归。CI 使用一个临时 MongoDB service container 和非生产占位配置，不会访问真实数据库、OAuth 或 AI 账号。
+生产构建会同时生成 `.next/standalone`，可直接使用仓库中的多阶段 `Dockerfile`；完整环境变量、健康检查和回滚流程见 [部署手册](./docs/DEPLOYMENT.md)。
+
+GitHub Actions 会在 push 和 pull request 时执行依赖安装、lint、typecheck、Vitest、第四周 AI Diff/流协议检查、第五至六周沙箱协议检查、第七周推荐/cursor 检查、MongoDB 健康检查、两次演示数据初始化、第二/三/七周数据与索引迁移验证、生产构建、Playwright 端到端测试与 Lighthouse 质量预算。连续执行两次 seed 可以及时发现幂等性回归。CI 使用一个临时 MongoDB service container 和非生产占位配置，不会访问真实数据库、OAuth 或 AI 账号。
 
 ## 安全注意事项
 
@@ -226,6 +252,7 @@ GitHub Actions 会在 push 和 pull request 时执行依赖安装、lint、typec
 - 推荐只为登录用户保存与问题关联的最近浏览信号，不记录匿名 IP、User-Agent、设备指纹、原始搜索词或正文；“不感兴趣”可在 Toast 中立即撤销。每个“用户—问题”只保留最近一条浏览状态，画像只读取最近 90 天；当前没有自动过期或完整的行为历史导出/清空中心，因此不声称具备完整隐私合规系统。
 - Vote/Collection/Notification 使用复合唯一索引防重；旧数据库上线前需先执行 `pnpm migrate:week2`，启用相似问题检索前需执行 `pnpm migrate:week3`，启用新信息流前需执行 `pnpm migrate:week7`。
 - 部署平台的健康检查可使用 `/api/health`，但不要在该响应中增加 URI、堆栈或密钥。
+- 可观测性默认关闭。本监控事件管道只上报脱敏路径、Web Vitals 数值、错误类型/指纹和服务端 digest；不发送查询参数、请求头、原始错误消息、堆栈、用户输入或身份信息。常规服务端诊断日志仍可能包含异常堆栈，生产日志平台需要独立的访问控制与留存策略。
 
 ## 生产运行
 
@@ -238,3 +265,4 @@ pnpm start
 ```
 
 生产环境中应由部署平台注入环境变量，并确保 MongoDB 允许来自运行环境的连接。不要在生产环境执行演示数据脚本。
+上线前的迁移、健康检查、可观测性验证和回滚步骤见 [部署手册](./docs/DEPLOYMENT.md)。

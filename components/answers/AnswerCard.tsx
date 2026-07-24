@@ -8,6 +8,7 @@ import Preview from "../editor/Preview";
 import EditDeleteAction from "../user/EditDeleteAction";
 import Votes from "../votes/Votes";
 import { AnswerAcceptanceControl } from "./AnswerAcceptanceControl";
+import { getI18n } from "@/lib/i18n/server";
 
 interface Props extends Answer {
   containerClasses?: string;
@@ -15,7 +16,7 @@ interface Props extends Answer {
   showActionBtns?: boolean;
 }
 
-const AnswerCard = ({
+const AnswerCard = async ({
   _id,
   author,
   content,
@@ -27,6 +28,7 @@ const AnswerCard = ({
   showReadMore = false,
   showActionBtns,
 }: Props) => {
+  const { locale, t } = await getI18n();
   // 获取用户是否已经投过票的信息
   const hasVotedPromise = hasVoted({
     targetId: _id,
@@ -61,18 +63,18 @@ const AnswerCard = ({
             className="flex max-sm:flex-col max-sm:ml-1 sm:flex-row sm:items-center "
           >
             <p className="body-semibold text-dark300_light700">
-              {author.name ?? "Anonymous"}
+              {author.name ?? t("Anonymous")}
             </p>
             <p className="small-regular text-dark400_light500 ml-0.5 mt-0.5 line-clamp-1">
               <span className="max-sm:hidden"> • </span>
-              answered {getTimeStamp(createdAt)}
+              {t("answered {time}", { time: getTimeStamp(createdAt, locale) })}
             </p>
           </Link>
         </div>
 
         <div className="flex justify-end">
           {/* Suspense 的作用是：在组件渲染过程中，如果某个异步操作还未完成，可以显示一个加载状态 */}
-          <Suspense fallback={<div>Loading votes...</div>}>
+          <Suspense fallback={<div>{t("Loading votes...")}</div>}>
             <Votes
               upvotes={upvotes}
               downvotes={downvotes}
@@ -96,7 +98,7 @@ const AnswerCard = ({
           href={`/questions/${question}#answer-${_id}`}
           className="body-semibold z-10 font-space-grotesk text-primary-500"
         >
-          <p className="mt-1">Read more...</p>
+          <p className="mt-1">{t("Read more...")}</p>
         </Link>
       )}
     </article>

@@ -16,6 +16,7 @@ import { CheckCheck } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+import { useI18n } from "@/lib/i18n/client";
 
 interface NotificationPageListProps {
   initialNotifications: NotificationDTO[];
@@ -26,6 +27,7 @@ const NotificationPageList = ({
   initialNotifications,
   initialUnreadCount,
 }: NotificationPageListProps) => {
+  const { t } = useI18n();
   const router = useRouter();
   const [notificationState, setNotificationState] = useState({
     notifications: initialNotifications,
@@ -59,8 +61,8 @@ const NotificationPageList = ({
         });
 
         if (!result.success || !result.data) {
-          toast.error("Failed to mark the notification as read.", {
-            description: result.errors?.message,
+          toast.error(t("Failed to mark the notification as read."), {
+            description: result.errors?.message ? t(result.errors.message) : undefined,
           });
         } else {
           const change = {
@@ -76,8 +78,8 @@ const NotificationPageList = ({
         }
       }
     } catch {
-      toast.error("Failed to mark the notification as read.", {
-        description: "Please check your connection and try again.",
+      toast.error(t("Failed to mark the notification as read."), {
+        description: t("Please check your connection and try again."),
       });
     } finally {
       operationInFlight.current = false;
@@ -97,8 +99,8 @@ const NotificationPageList = ({
       const result = await markAllNotificationsRead();
 
       if (!result.success || !result.data) {
-        toast.error("Failed to mark all notifications as read.", {
-          description: result.errors?.message,
+        toast.error(t("Failed to mark all notifications as read."), {
+          description: result.errors?.message ? t(result.errors.message) : undefined,
         });
       } else {
         const change = {
@@ -112,8 +114,8 @@ const NotificationPageList = ({
         publishNotificationChange(change);
       }
     } catch {
-      toast.error("Failed to mark all notifications as read.", {
-        description: "Please check your connection and try again.",
+      toast.error(t("Failed to mark all notifications as read."), {
+        description: t("Please check your connection and try again."),
       });
     } finally {
       operationInFlight.current = false;
@@ -126,8 +128,8 @@ const NotificationPageList = ({
       <div className="mb-5 flex items-center justify-between gap-4">
         <p className="small-regular text-dark400_light500">
           {unreadCount > 0
-            ? `${unreadCount} unread notification${unreadCount === 1 ? "" : "s"}`
-            : "You're all caught up"}
+            ? t("{count} unread notifications", { count: unreadCount })
+            : t("You're all caught up")}
         </p>
         <Button
           type="button"
@@ -136,7 +138,7 @@ const NotificationPageList = ({
           onClick={() => void markAllAsRead()}
         >
           <CheckCheck className="size-4" />
-          Mark all as read
+          {t("Mark all as read")}
         </Button>
       </div>
 

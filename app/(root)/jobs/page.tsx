@@ -6,8 +6,18 @@ import {
   fetchJobs,
   fetchLocation,
 } from "@/lib/actions/job.action";
+import { createPageMetadata } from "@/lib/seo";
+import { getI18n } from "@/lib/i18n/server";
+
+export const metadata = createPageMetadata({
+  title: "Developer Jobs",
+  description:
+    "Search software engineering and frontend developer opportunities by role and location.",
+  pathname: "/jobs",
+});
 
 const FindJobs = async ({ searchParams }: RouteParams) => {
+  const { t } = await getI18n();
   // 通过 query 参数获取用户输入的搜索条件，包括职位关键词、位置和页码。然后根据这些参数构建一个查询字符串，用于向后端API请求相关的职位数据。
   const { query, location, page } = await searchParams;
   const parsedPage = Number.parseInt(page ?? "1", 10) || 1;
@@ -29,7 +39,7 @@ const FindJobs = async ({ searchParams }: RouteParams) => {
 
   return (
     <>
-      <h1 className="h1-bold text-dark100_light900">Jobs</h1>
+      <h1 className="h1-bold text-dark100_light900">{t("Jobs")}</h1>
 
       <div className="flex">
         {/* job filter */}
@@ -43,8 +53,7 @@ const FindJobs = async ({ searchParams }: RouteParams) => {
             .map((job) => <JobCard key={job.id} job={job} />)
         ) : (
           <div className="paragraph-regular text-dark200_light800 w-full text-center">
-            Oops! We couldn&apos;t find any jobs at the moment. Please try again
-            later.
+            {t("Oops! We couldn't find any jobs at the moment. Please try again later.")}
           </div>
         )}
       </section>
